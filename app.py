@@ -33,6 +33,7 @@ st.markdown("""
     .main { background-color: #0e1117; color: white; }
     .stMetric { background-color: #1e2130; padding: 15px; border-radius: 10px; border: 1px solid #3e4253; }
     .admin-box { background-color: #2d1b4e; padding: 20px; border-radius: 15px; border: 2px solid #8a2be2; }
+    .shariah-tag { padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -116,25 +117,25 @@ if st.session_state['page'] == "admin":
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif st.session_state['page'] == "portfolio":
-    st.title("💼 My Stock Portfolio")
+    st.title("💼 Intelligent Portfolio & Shariah Tracker")
     
-    # --- ایڈٹ موڈ چیک کریں ---
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
-            # موجودہ ڈیٹا حاصل کریں
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
             with st.form("edit_form"):
                 e_symbol = st.text_input("Symbol", value=item['symbol']).upper()
                 e_qty = st.number_input("Quantity", value=int(item['quantity']), min_value=1)
                 e_price = st.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
+                e_shariah = st.selectbox("Shariah Status", ["Compliant", "Non-Compliant"], 
+                                         index=0 if item.get('shariah') == "Compliant" else 1)
                 if st.form_submit_button("Update Stock"):
                     supabase.table("portfolios").update({
-                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price
+                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
                     }).eq("id", st.session_state['edit_id']).execute()
                     st.session_state['edit_id'] = None
-                    st.success("تبدیلی محفوظ کر لی گئی!")
+                    st.success("اپ ڈیٹ ہو گیا!")
                     st.rerun()
                 if st.button("Cancel"):
                     st.session_state['edit_id'] = None
@@ -142,41 +143,92 @@ elif st.session_state['page'] == "portfolio":
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
     
     else:
-        # پورٹ فولیو میں سٹاک شامل کرنا
         with st.expander("➕ Add Stock to Portfolio"):
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
             p_symbol = col1.text_input("Symbol").upper()
             p_qty = col2.number_input("Quantity", min_value=1, step=1)
             p_price = col3.number_input("Buy Price", min_value=0.1)
+            p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
             if st.button("Save to Portfolio"):
                 try:
                     supabase.table("portfolios").insert({
                         "user_id": st.session_state['user'].id,
                         "symbol": p_symbol,
                         "quantity": p_qty,
-                        "buy_price": p_price
+                        "buy_price": p_price,
+                        "shariah": p_shariah
                     }).execute()
                     st.success("محفوظ کر لیا گیا!")
                     st.rerun()
                 except Exception as e: st.error(f"غلطی: {e}")
 
-        # پورٹ فولیو لسٹ
         try:
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
             if res.data:
-                st.subheader("Your Holdings")
+                total_invested, total_current_value = 0, 0
+                st.subheader("Detailed Analysis")
+                
                 for item in res.data:
-                    col_s, col_q, col_p, col_e, col_d = st.columns([2, 1, 1, 1, 1])
-                    col_s.write(f"**{item['symbol']}**")
-                    col_q.write(item['quantity'])
-                    col_p.write(f"Rs. {item['buy_price']}")
-                    if col_e.button("✏️ Edit", key=f"edit_{item['id']}"):
-                        st.session_state['edit_id'] = item['id']
-                        st.rerun()
-                    if col_d.button("🗑️ Delete", key=f"del_{item['id']}"):
-                        supabase.table("portfolios").delete().eq("id", item['id']).execute()
-                        st.rerun()
-                st.markdown("---")
+                    try:
+                        s_symbol = item['symbol'] + ".KA"
+                        s_obj = yf.Ticker(s_symbol)
+                        s_df = s_obj.history(period="1mo")
+                        
+                        if not s_df.empty:
+                            curr_price = s_df['Close'].iloc[-1]
+                            buy_price, qty = item['buy_price'], item['quantity']
+                            profit_loss = (curr_price - buy_price) * qty
+                            pl_percent = ((curr_price - buy_price) / buy_price) * 100
+                            
+                            # ڈیویڈنڈ ڈیٹا
+                            div_yield = s_obj.info.get('dividendYield', 0) or 0
+                            div_est = div_yield * curr_price * qty
+                            
+                            # ٹیکنیکل مشورہ
+                            s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
+                            s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
+                            if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
+                                advice, a_color = "🟢 Buy More", "green"
+                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
+                                advice, a_color = "🔴 Sell / Exit", "red"
+                            else:
+                                advice, a_color = "🟡 Hold", "yellow"
+                            
+                            total_invested += (buy_price * qty)
+                            total_current_value += (curr_price * qty)
+
+                            # ڈسپلے
+                            with st.container():
+                                c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.5, 1.5, 1, 1])
+                                c1.write(f"**{item['symbol']}**")
+                                
+                                # شریعہ ٹیگ
+                                sh_color = "green" if item.get('shariah') == "Compliant" else "red"
+                                c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
+                                
+                                c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
+                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
+                                c5.write(f"Div: {div_yield*100:.1f}%")
+                                
+                                if c6.button("🗑️", key=f"dl_{item['id']}"):
+                                    supabase.table("portfolios").delete().eq("id", item['id']).execute()
+                                    st.rerun()
+                                
+                                with st.expander("View Details"):
+                                    st.write(f"Buy Price: Rs. {buy_price} | Current Price: Rs. {curr_price:.2f}")
+                                    st.write(f"Estimated Annual Dividend: Rs. {div_est:.2f}")
+                                    st.write(f"Overall Return: {pl_percent:.2f}%")
+                                    if st.button("Edit", key=f"ed_{item['id']}"):
+                                        st.session_state['edit_id'] = item['id']
+                                        st.rerun()
+                                st.markdown("---")
+                    except: st.write(f"Error fetching {item['symbol']}")
+
+                c_inv, c_cur, c_net = st.columns(3)
+                c_inv.metric("Total Invested", f"Rs. {total_invested:,.2f}")
+                c_cur.metric("Current Value", f"Rs. {total_current_value:,.2f}")
+                net_pl = total_current_value - total_invested
+                c_net.metric("Net P&L", f"Rs. {net_pl:,.2f}", delta=f"{net_pl:,.2f}")
             else:
                 st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
         except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
