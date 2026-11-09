@@ -16,20 +16,17 @@ try:
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
-
     service_key = st.secrets["SUPABASE_SERVICE_KEY"]
     supabase_admin: Client = create_client(url, service_key)
 except Exception as e:
     st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
     st.stop()
 
-# سیشن اسٹیٹ
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
     st.session_state['page'] = "user"
 
-# کسٹم CSS
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -47,22 +44,19 @@ def auth_page():
         auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"], horizontal=True)
         email = st.text_input("ای میل (Email)")
         password = st.text_input("پاس ورڈ (Password)", type="password")
-        
         if auth_mode == "Login":
             if st.button("Login", use_container_width=True):
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state['user'] = res.user
                     st.rerun()
-                except Exception as e:
-                    st.error(f"لاگ ان ناکام: {e}")
+                except Exception as e: st.error(f"لاگ ان ناکام: {e}")
         else:
             if st.button("Create Account", use_container_width=True):
                 try:
                     supabase.auth.sign_up({"email": email, "password": password})
-                    st.success("اکاؤنٹ بن گیا! براہ کرم ای میل Verify کریں۔")
-                except Exception as e:
-                    st.error(f"سائن اپ میں غلطی: {e}")
+                    st.success("اکاؤنٹ بن گیا! ای میل Verify کریں۔")
+                except Exception as e: st.error(f"سائن اپ میں غلطی: {e}")
 
 if st.session_state['user'] is None:
     auth_page()
@@ -71,20 +65,17 @@ if st.session_state['user'] is None:
 # --- 3. نیویگیشن ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
 st.sidebar.markdown("---")
-
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
-    st.sidebar.success("👑 Admin Access Granted")
-    if st.sidebar.button("🛡️ Admin Dashboard"):
-        st.session_state['page'] = "admin"
+    st.sidebar.success("👑 Admin Access")
+    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"):
-    st.session_state['page'] = "user"
-
+if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
+if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
@@ -103,8 +94,7 @@ def send_email(target_price, current_price, symbol):
             server.login(sender, pwd)
             server.send_message(msg)
         return True
-    except:
-        return False
+    except: return False
 
 def calculate_rsi(data, window=14):
     delta = data.diff()
@@ -118,22 +108,46 @@ if st.session_state['page'] == "admin":
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
-        # درست طریقہ: list_users() استعمال کریں اور پھر .users سے لسٹ نکالیں
         response = supabase_admin.auth.admin.list_users()
         user_list = [user.email for user in response.users]
-        
-        st.subheader("Registered Users")
         st.table(pd.DataFrame({"User Email": user_list}))
-        st.write(f"کل صارفین: {len(user_list)}")
-    except Exception as e:
-        st.error(f"ڈیٹا حاصل کرنے میں غلطی: {e}")
+    except Exception as e: st.error(f"غلطی: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
+
+elif st.session_state['page'] == "portfolio":
+    st.title("💼 My Stock Portfolio")
+    
+    # پورٹ فولیو میں سٹاک شامل کرنا
+    with st.expander("➕ Add Stock to Portfolio"):
+        col1, col2, col3 = st.columns(3)
+        p_symbol = col1.text_input("Symbol (مثلاً FFC)").upper()
+        p_qty = col2.number_input("Quantity", min_value=1, step=1)
+        p_price = col3.number_input("Buy Price", min_value=0.1)
+        if st.button("Save to Portfolio"):
+            try:
+                supabase.table("portfolios").insert({
+                    "user_id": st.session_state['user'].id,
+                    "symbol": p_symbol,
+                    "quantity": p_qty,
+                    "buy_price": p_price
+                }).execute()
+                st.success("پورٹ فولیو میں محفوظ کر لیا گیا!")
+            except Exception as e: st.error(f"غلطی: {e}")
+
+    # پورٹ فولیو دکھانا
+    try:
+        res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
+        if res.data:
+            df_p = pd.DataFrame(res.data)
+            st.table(df_p[['symbol', 'quantity', 'buy_price']])
+        else:
+            st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
+    except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
-    
     st.sidebar.markdown("---")
-    st.sidebar.subheader("⚙️ Analysis Settings")
+    st.sidebar.subheader("⚙️ Settings")
     symbol = st.sidebar.text_input("کمپنی کا سمبل", "FFC").upper()
     start_date = st.sidebar.date_input("شروع کی تاریخ", date(2023, 1, 1))
     end_date = st.sidebar.date_input("آخری تاریخ", date.today())
@@ -141,14 +155,12 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔔 Price Alert")
     alert_price = st.sidebar.number_input("ٹارگٹ قیمت", value=0.0)
-    if st.sidebar.button("Set Alert"):
-        st.sidebar.success("الرٹ سیٹ ہو گیا!")
+    if st.sidebar.button("Set Alert"): st.sidebar.success("الرٹ سیٹ ہو گیا!")
 
     try:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
-
         if df.empty:
             st.error("ڈیٹا نہیں ملا!")
         else:
@@ -193,16 +205,12 @@ else:
             c1.write(f"**Sector:** {info.get('sector', 'N/A')}")
             c2.write(f"**Market Cap:** {info.get('marketCap', 'N/A')}")
             c2.write(f"**52W High:** {info.get('fiftyTwoWeekHigh', 'N/A')}")
-
             st.subheader("💰 Dividend History")
             st.write(stock_obj.dividends.tail(10))
-
             st.subheader("📰 Live News")
             if stock_obj.news:
-                for item in stock_obj.news[:5]:
-                    st.markdown(f"**[{item['title']}]({item['link']})**")
-            else:
-                st.write("کوئی خبر دستیاب نہیں ہے۔")
+                for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
+            else: st.write("کوئی خبر دستیاب نہیں ہے۔")
 
 except Exception as e:
     st.error(f"System Error: {e}")
