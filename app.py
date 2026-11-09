@@ -6,37 +6,57 @@ from plotly.subplots import make_subplots
 from datetime import date
 import smtplib
 from email.mime.text import MIMEText
+from supabase import create_client, Client
 
-# پیج کی بنیادی سیٹنگز
+# --- 1. Supabase کنکشن ---
+url: str = st.secrets["SUPABASE_URL"]
+key: str = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
+# پیج کی سیٹنگز
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide")
 
-# --- 1. لاگ ان سسٹم (Login System) ---
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
+# --- 2. Auth سسٹم (Login/Signup) ---
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
 
-def login_page():
+def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        st.title("🔐 PSX Terminal Login")
-        user = st.text_input("Username")
-        pwd = st.text_input("Password", type="password")
-        if st.button("Login"):
-            # پاس ورڈ Secrets سے چیک ہو رہا ہے
-            if user == "admin" and pwd == st.secrets["ADMIN_PASSWORD"]:
-                st.session_state['logged_in'] = True
-                st.rerun()
-            else:
-                st.error("غلط یوزر نیم یا پاس ورڈ!")
+        st.title("🔐 PSX Quantum Access")
+        auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"])
+        
+        email = st.text_input("ای میل (Email)")
+        password = st.text_input("پاس ورڈ (Password)", type="password")
+        
+        if auth_mode == "Login":
+            if st.button("Login"):
+                try:
+                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                    st.session_state['user'] = res.user
+                    st.success("لاگ ان کامیاب!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"لاگ ان ناکام: {e}")
+        else:
+            if st.button("Create Account"):
+                try:
+                    res = supabase.auth.sign_up({"email": email, "password": password})
+                    st.success("اکاؤنٹ بن گیا! براہ کرم اپنی ای میل چیک کریں اور تصدیق (Verify) کریں۔")
+                except Exception as e:
+                    st.error(f"سائن اپ میں غلطی: {e}")
 
-if not st.session_state['logged_in']:
-    login_page()
+if st.session_state['user'] is None:
+    auth_page()
     st.stop()
 
-# --- 2. لاگ آؤٹ بٹن (Sidebar) ---
-st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
+# --- 3. لاگ آؤٹ بٹن ---
+if st.sidebar.button("Logout"):
+    st.session_state['user'] = None
+    st.rerun()
 
-# خوبصورت UI کے لیے CSS
+# UI ڈیزائن
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -44,13 +64,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 PSX Quantum Stock Terminal")
-st.markdown("پروفیشنل ٹیکنیکل انالیسس اور سیکیور الرٹ سسٹم")
+st.title(f"🚀 PSX Quantum Terminal | Welcome {st.session_state['user'].email}")
 
-# --- 3. ای میل الرٹ فنکشن (Email Logic) ---
+# --- 4. ای میل الرٹ فنکشن ---
 def send_email(target_price, current_price, symbol):
     try:
-        # تمام معلومات Secrets سے اٹھائی جا رہی ہیں
         sender_email = st.secrets["SENDER_EMAIL"] 
         receiver_email = st.secrets["RECEIVER_EMAIL"]
         app_password = st.secrets["APP_PASSWORD"]
@@ -65,22 +83,21 @@ def send_email(target_price, current_price, symbol):
             server.send_message(msg)
         return True
     except Exception as e:
-        st.error(f"ای میل بھیجنے میں غلطی: {e}")
+        st.error(f"ای میل ایرر: {e}")
         return False
 
-# --- 4. سائیڈ بار (Settings) ---
+# --- 5. سائیڈ بار ---
 st.sidebar.header("⚙️ ٹرمینل سیٹنگز")
-symbol = st.sidebar.text_input("کمپنی کا سمبل (مثلاً FFC, SYS, ENGRO)", "FFC").upper()
+symbol = st.sidebar.text_input("کمپنی کا سمبل", "FFC").upper()
 start_date = st.sidebar.date_input("شروع کی تاریخ", date(2023, 1, 1))
 end_date = st.sidebar.date_input("آخری تاریخ", date.today())
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔔 پرائس الرٹ")
-alert_price = st.sidebar.number_input("ٹارگٹ قیمت لکھیں", value=0.0)
+alert_price = st.sidebar.number_input("ٹارگٹ قیمت", value=0.0)
 if st.sidebar.button("الرٹ ایکٹو کریں"):
-    st.sidebar.success("الرٹ سیٹ ہو گیا! قیمت پہنچنے پر میل آئے گی۔")
+    st.sidebar.success("الرٹ سیٹ ہو گیا!")
 
-# RSI کیلکولیشن کا فارمولا
 def calculate_rsi(data, window=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
@@ -88,93 +105,61 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- 5. مین پروگرام (Main Logic) ---
+# --- 6. مین اینالیسس ---
 try:
     full_symbol = symbol + ".KA"
     stock_obj = yf.Ticker(full_symbol)
     df = stock_obj.history(start=start_date, end=end_date)
 
     if df.empty:
-        st.error("ڈیٹا نہیں ملا! براہ کرم درست سمبل لکھیں۔")
+        st.error("ڈیٹا نہیں ملا!")
     else:
-        # ٹیکنیکل انڈیکیٹرز
         df['SMA_20'] = df['Close'].rolling(window=20).mean()
         df['SMA_50'] = df['Close'].rolling(window=50).mean()
         df['RSI'] = calculate_rsi(df['Close'])
-        
         last_price = df['Close'].iloc[-1]
-        last_rsi = df['RSI'].iloc[-1]
         
-        # ای میل چیک (اگر قیمت ٹارگٹ کے 1% کے قریب ہو)
         if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
-            if send_email(alert_price, last_price, symbol):
-                st.success("🎯 قیمت ٹارگٹ پر پہنچ گئی! آپ کو ای میل بھیج دی گئی ہے۔")
+            send_email(alert_price, last_price, symbol)
 
-        # ٹاپ میٹرکس
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("موجودہ قیمت", f"Rs. {last_price:.2f}")
-        col2.metric("RSI (14)", f"{last_rsi:.2f}")
+        col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
         
-        # سگنل لاجک
         if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
-            signal = "🟢 STRONG BUY"
-            sig_color = "green"
+            signal, sig_color = "🟢 STRONG BUY", "green"
         elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
-            signal = "🔴 STRONG SELL"
-            sig_color = "red"
+            signal, sig_color = "🔴 STRONG SELL", "red"
         else:
-            signal = "🟡 HOLD / NEUTRAL"
-            sig_color = "yellow"
+            signal, sig_color = "🟡 HOLD", "yellow"
             
         col3.markdown(f"**سگنل:** <h3 style='color:{sig_color};'>{signal}</h3>", unsafe_allow_html=True)
-        
-        rsi_stat = "Overbought (مہنگا)" if last_rsi > 70 else "Oversold (سستا)" if last_rsi < 30 else "Normal"
-        col4.metric("مارکیٹ سٹیٹس", rsi_stat)
+        col4.metric("سٹیٹس", "Overbought" if df['RSI'].iloc[-1] > 70 else "Oversold" if df['RSI'].iloc[-1] < 30 else "Normal")
 
-        # --- پروفیشنل چارٹ (Subplots) ---
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.6, 0.2, 0.2])
-        
-        # Price + SMA
         fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan', width=1), name="SMA 20"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='yellow', width=1), name="SMA 50"), row=1, col=1)
-        
-        # Volume
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan'), name="SMA 20"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='yellow'), name="SMA 50"), row=1, col=1)
         fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Volume", marker_color='gray', opacity=0.5), row=2, col=1)
-        
-        # RSI
-        fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta', width=2), name="RSI"), row=3, col=1)
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-
+        fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta'), name="RSI"), row=3, col=1)
         fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- کمپنی ڈیٹا (No Tabs, just simple list) ---
         st.markdown("---")
         st.subheader("🏢 کمپنی کی تفصیلات")
         info = stock_obj.info
         c1, c2 = st.columns(2)
-        c1.write(f"**مکمل نام:** {info.get('longName', 'N/A')}")
+        c1.write(f"**نام:** {info.get('longName', 'N/A')}")
         c1.write(f"**سیکٹر:** {info.get('sector', 'N/A')}")
         c2.write(f"**مارکیٹ کیپ:** {info.get('marketCap', 'N/A')}")
         c2.write(f"**52 ہفتہ ہائی:** {info.get('fiftyTwoWeekHigh', 'N/A')}")
 
-        st.markdown("---")
-        st.subheader("💰 ڈیویڈنڈ ہسٹری")
-        div_yield = info.get('dividendYield', 0)
-        if div_yield:
-            st.success(f"Dividend Yield: {div_yield*100:.2f}%")
+        st.subheader("💰 ڈیویڈنڈ")
         st.write(stock_obj.dividends.tail(10))
 
-        st.markdown("---")
-        st.subheader("📰 تازہ ترین خبریں")
-        news = stock_obj.news
-        if news:
-            for item in news[:5]:
-                st.markdown(f"**[{item['title']}]({item['link']})**")
-        else:
-            st.write("کوئی خبر دستیاب نہیں ہے۔")
+        st.subheader("📰 خبریں")
+        for item in stock_obj.news[:5]:
+            st.markdown(f"**[{item['title']}]({item['link']})**")
 
 except Exception as e:
-    st.error(f"ایک تکنیکی غلطی ہوئی ہے: {e}")
+    st.error(f"ایرر: {e}")
