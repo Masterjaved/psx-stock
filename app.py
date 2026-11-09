@@ -24,11 +24,15 @@ def init_supabase():
         return None, None
 
 supabase, supabase_admin = init_supabase()
-if not supabase: st.stop()
+if not supabase:
+    st.stop()
 
-if 'user' not in st.session_state: st.session_state['user'] = None
-if 'page' not in st.session_state: st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+if 'page' not in st.session_state:
+    st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -38,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth ---
+# --- 2. Auth Logic ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -67,21 +71,21 @@ if st.session_state['user'] is None:
 
 # --- 3. Navigation ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
-# DEBUG: User ID دکھانے کے لیے (صرف چیک کرنے کے لیے)
-st.sidebar.caption(f"User ID: {st.session_state['user'].id}")
 st.sidebar.markdown("---")
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
     st.sidebar.success("👑 Admin Access")
-    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
+    if st.sidebar.button("🛡️ Admin Dashboard"): 
+        st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): st.session_/_state['page'] = "user" # Fixed
-if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
-if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
+if st.sidebar.button("📊 Stock Analyzer"): 
+    st.session_state['page'] = "user"
+if st.sidebar.button("💼 My Portfolio"): 
+    st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
@@ -111,7 +115,6 @@ def calculate_rsi(data, window=14):
 
 # --- 5. Admin Page ---
 def show_admin_page():
-    st.markdown('<div class="admin-box">', unsafe_/_allow_html=True)
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
@@ -124,7 +127,6 @@ def show_admin_page():
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
-    
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
@@ -155,16 +157,9 @@ def show_portfolio_page():
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save to Portfolio"):
                     try:
-                        # Force User ID check
-                        uid = st.session_state['user'].id
-                        if not uid:
-                            st.error("User ID نہیں ملی! براہ کرم دوبارہ لاگ ان کریں۔")
-                        else:
-                            supabase.table("portfolios").insert({
-                                "user_id": uid, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
-                            }).execute()
-                            st.success("محفوظ کر لیا گیا!")
-                            st.rerun()
+                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
+                        st.success("محفوظ کر لیا گیا!")
+                        st.rerun()
                     except Exception as e: st.error(f"ڈیٹا بیس ایرر: {e}")
 
         try:
@@ -186,8 +181,8 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_/_SMA_50].iloc[-1] # Fixed manually
-                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
+                            sma20 = s_df['SMA_20'].iloc[-1]
+                            sma50 = s_df['SMA_50'].iloc[-1]
                             if curr_price > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
                             elif curr_price < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
                             else: advice, a_color = "🟡 Hold", "yellow"
@@ -199,7 +194,6 @@ def show_portfolio_page():
                                 sh_color = "green" if item.get('shariah') == "Compliant" else "red"
                                 c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
                                 c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
-                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_/_allow_html=True)
                                 c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
                                 c5.write(f"Div: {div_yield*100:.1f}%")
                                 if c6.button("🗑️", key=f"dl_{item['id']}"):
@@ -248,9 +242,10 @@ def show_analyzer_page():
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
-            if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
-                send_email(alert_price, last_/_price, symbol)
-                send_email(alert_price, last_price, symbol)
+            if alert_price > 0 and abs(last_price - alert_price) < (last_//_price * 0.01):
+                # Small Fix to avoid glitch
+                if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
+                    send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
