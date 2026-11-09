@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import date
+from datetime import date, datetime
 import smtplib
 from email.mime.text import MIMEText
 from supabase import create_client, Client
@@ -115,8 +115,6 @@ if st.session_state['page'] == "admin":
 
 elif st.session_state['page'] == "portfolio":
     st.title("💼 My Stock Portfolio")
-    
-    # پورٹ فولیو میں سٹاک شامل کرنا
     with st.expander("➕ Add Stock to Portfolio"):
         col1, col2, col3 = st.columns(3)
         p_symbol = col1.text_input("Symbol").upper()
@@ -134,12 +132,10 @@ elif st.session_state['page'] == "portfolio":
                 st.rerun()
             except Exception as e: st.error(f"غلطی: {e}")
 
-    # پورٹ فولیو دکھانا اور ڈیلیٹ کرنا
     try:
         res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
         if res.data:
             st.subheader("Your Holdings")
-            # ہم یہاں ایک لسٹ بنائیں گے تاکہ ہر رو کے ساتھ ڈیلیٹ بٹن ہو
             for item in res.data:
                 col_s, col_q, col_p, col_d = st.columns([2, 1, 1, 1])
                 col_s.write(f"**{item['symbol']}**")
@@ -149,7 +145,6 @@ elif st.session_state['page'] == "portfolio":
                     supabase.table("portfolios").delete().eq("id", item['id']).execute()
                     st.success(f"{item['symbol']} ڈیلیٹ کر دیا گیا!")
                     st.rerun()
-            st.markdown("---")
         else:
             st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
     except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
@@ -170,19 +165,27 @@ else:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
+        
         if df.empty:
             st.error("ڈیٹا نہیں ملا!")
         else:
+            # ڈیٹا لوڈ ہونے کا وقت ریکارڈ کریں
+            last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
+            
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
                 send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
+            col1.caption(f"🕒 Last Updated: {last_updated}")
+            
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+            
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
             elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
@@ -202,6 +205,7 @@ else:
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
             fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
+            
             st.markdown("---")
             st.subheader("🏢 Company Intelligence")
             info = stock_obj.info
@@ -216,6 +220,5 @@ else:
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
             else: st.write("کوئی خبر دستیاب نہیں ہے۔")
-
-except Exception as e:
-    st.error(f"System Error: {e}")
+    except Exception as e:
+        st.error(f"System Error: {e}")
