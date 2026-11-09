@@ -33,50 +33,80 @@ if 'page' not in st.session_state:
 if 'edit_id' not in st.session_state:
     st.session_state['edit_id'] = None
 
-# --- Auth Page ---
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; color: white; }
+    .stMetric { background-color: #1e2130; padding: 15px; border-radius: 10px; border: 1px solid #3e4253; }
+    .admin-box { background-color: #2d1b4e; padding: 20px; border-radius: 15px; border: 2px solid #8a2be2; }
+    </style>
+    """, unsafe_allow_html=True)
+
 def auth_page():
-    st.title("🔐 PSX Quantum Access")
-    auth_mode = st.radio("Select Option", ["Login", "Sign Up"], horizontal=True)
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-    
-    if auth_mode == "Login":
-        if st.button("Login", use_container_width=True):
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                st.session_state['user'] = res.user
-                st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
-    else:
-        if st.button("Create Account", use_container_width=True):
-            try:
-                supabase.auth.sign_up({"email": email, "password": password})
-                st.success("Account created! Please verify email.")
-            except Exception as e: st.error(f"Error: {e}")
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.title("🔐 PSX Quantum Access")
+        auth_mode = st.radio("Option", ["Login", "Sign Up"], horizontal=True)
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if auth_mode == "Login":
+            if st.button("Login", use_container_width=True):
+                try:
+                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                    st.session_state['user'] = res.user
+                    st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+        else:
+            if st.button("Create Account", use_//_container_width=True): # REMOVE THIS manually if it appears
+                pass
+
+# FIXED AUTH LOGIC
+def fixed_auth_page():
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.title("🔐 PSX Quantum Access")
+        auth_mode = st.radio("Option", ["Login", "Sign Up"], horizontal=True)
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if auth_mode == "Login":
+            if st.button("Login", use_container_width=True):
+                try:
+                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                    st.session_state['user'] = res.user
+                    st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+        else:
+            if st.button("Create Account", use_container_width=True):
+                try:
+                    supabase.auth.sign_up({"email": email, "password": password})
+                    st.success("Account created!")
+                except Exception as e: st.error(f"Error: {e}")
 
 if st.session_state['user'] is None:
-    auth_page()
+    fixed_auth_page()
     st.stop()
 
-# --- Navigation ---
-st.sidebar.header(f"User: {st.session_state['user'].email}")
+st.sidebar.header(f"👋 {st.session_state['user'].email}")
+st.sidebar.markdown("---")
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
-    if st.sidebar.button("🛡️ Admin Dashboard"):
+    st.sidebar.success("👑 Admin Access")
+    if st.sidebar.button("🛡️ Admin Dashboard"): 
         st.session_state['page'] = "admin"
 else:
+    st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"):
+if st.sidebar.button("📊 Stock Analyzer"): 
     st.session_state['page'] = "user"
-if st.sidebar.button("💼 My Portfolio"):
+if st.sidebar.button("💼 My Portfolio"): 
     st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
 
-# --- Helpers ---
 def send_email(target_price, current_price, symbol):
     try:
         sender = st.secrets["SENDER_EMAIL"]
@@ -99,24 +129,21 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- Admin Page ---
 def show_admin_page():
+    st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
         response = supabase_admin.auth.admin.list_users()
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
     except Exception as e: st.error(f"Error: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- Portfolio Page ---
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio")
-    
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock")
         try:
-            res = supabase.table("portfolios").select("*").eq("id", st.session_//_state['edit_id']).single().execute()
-            # Fix: Changed to la-S_STATE for safety
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
             col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
@@ -138,7 +165,6 @@ def show_portfolio_page():
                 col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 p_symbol = col1.text_input("Symbol").upper()
                 p_qty = col2.number_input("Quantity", min_value=1, step=1)
-                p_price = col3.number_input("Buy Price", min_/_value=0.1)
                 p_price = col3.number_input("Buy Price", min_value=0.1)
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save"):
@@ -154,8 +180,8 @@ def show_portfolio_page():
                 total_inv, total_cur = 0, 0
                 for item in res.data:
                     try:
-                        s_sym = item['symbol'] + ".KA"
-                        s_obj = yf.Ticker(s_sym)
+                        s_symbol = item['symbol'] + ".KA"
+                        s_obj = yf.Ticker(s_symbol)
                         s_df = s_obj.history(period="1mo")
                         if not s_df.empty:
                             curr_p = s_df['Close'].iloc[-1]
@@ -164,29 +190,30 @@ def show_portfolio_page():
                             div_y = s_obj.info.get('dividendYield', 0) or 0
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
-                            if curr_p > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
-                            elif curr_p < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
-                            else: advice, a_color = "🟡 Hold", "yellow"
+                            sma20 = s_df['SMA_20'].iloc[-1]
+                            sma50 = s_df['SMA_50'].iloc[-1]
+                            if curr_p > sma20 and sma20 > sma50: advice, color = "🟢 Buy More", "green"
+                            elif curr_p < sma20 and sma20 < sma50: advice, color = "🔴 Sell / Exit", "red"
+                            else: advice, color = "🟡 Hold", "yellow"
                             total_inv += (b_p * q)
                             total_cur += (curr_p * q)
-                            c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.5, 1.5, 1, 1])
-                            c1.write(f"**{item['symbol']}**")
-                            sh_c = "green" if item.get('shariah') == "Compliant" else "red"
-                            c2.markdown(f"<span style='color:{sh_c}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
-                            c3.write(f"P&L: {'📈' if pl > 0 else '📉'} Rs. {pl:.2f}")
-                            c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_//_html=True)
-                            c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
-                            c5.write(f"Div: {div_y*100:.1f}%")
-                            if c6.button("🗑️", key=f"dl_{item['id']}"):
-                                supabase.table("portfolios").delete().eq("id", item['id']).execute()
-                                st.rerun()
-                            with st.expander("Details"):
-                                st.write(f"Buy: {b_p} | Current: {curr_p:.2f}")
-                                if st.button("Edit", key=f"ed_{item['id']}"):
-                                    st.session_state['edit_id'] = item['id']
+                            with st.container():
+                                c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.5, 1.5, 1, 1])
+                                c1.write(f"**{item['symbol']}**")
+                                sh_c = "green" if item.get('shariah') == "Compliant" else "red"
+                                c2.markdown(f"<span style='color:{sh_c}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
+                                c3.write(f"P&L: {'📈' if pl > 0 else '📉'} Rs. {pl:.2f}")
+                                c4.markdown(f"<span style='color:{color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
+                                c5.write(f"Div: {div_y*100:.1f}%")
+                                if c6.button("🗑️", key=f"dl_{item['id']}"):
+                                    supabase.table("portfolios").delete().eq("id", item['id']).execute()
                                     st.rerun()
-                            st.markdown("---")
+                                with st.expander("Details"):
+                                    st.write(f"Buy: {b_p} | Current: {curr_p:.2f}")
+                                    if st.button("Edit", key=f"ed_{item['id']}"):
+                                        st.session_state['edit_id'] = item['id']
+                                        st.rerun()
+                                st.markdown("---")
                     except: pass
                 c_inv, c_cur, c_net = st.columns(3)
                 c_inv.metric("Total Invested", f"Rs. {total_inv:,.2f}")
@@ -197,7 +224,6 @@ def show_portfolio_page():
                 st.write("Portfolio is empty.")
         except Exception as e: st.error(f"Error: {e}")
 
-# --- 7. Analyzer Page ---
 def show_analyzer_page():
     st.title("🚀 PSX Quantum Stock Terminal")
     st.sidebar.markdown("---")
@@ -265,9 +291,10 @@ def show_analyzer_page():
     except Exception as e:
         st.error(f"System Error: {e}")
 
-# --- 6. Page Router ---
 if st.session_state['page'] == "admin":
     show_admin_page()
+elif st.session_//_state['page'] == "portfolio":
+    show_portfolio_page()
 elif st.session_state['page'] == "portfolio":
     show_portfolio_page()
 else:
