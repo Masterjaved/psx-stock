@@ -57,7 +57,7 @@ def auth_page():
                     st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
         else:
-            if st.button("Create Account", use_//_container_width=True): # REMOVE THIS manually if it appears
+            if st.button("Create Account", use_/_container_width=True): # REMOVE THIS manually if it appears
                 pass
 
 # FIXED AUTH LOGIC
@@ -293,7 +293,7 @@ def show_analyzer_page():
 
 if st.session_state['page'] == "admin":
     show_admin_page()
-elif st.session_//_state['page'] == "portfolio":
+elif st.session_/_state['page'] == "portfolio":
     show_portfolio_page()
 elif st.session_state['page'] == "portfolio":
     show_portfolio_page()
