@@ -8,10 +8,9 @@ import smtplib
 from email.mime.text import MIMEText
 from supabase import create_client, Client
 
-# --- 1. بنیادی سیٹنگز ---
+# --- 1. Setup ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
-# Supabase کنکشنز
 try:
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]
@@ -19,7 +18,7 @@ try:
     service_key = st.secrets["SUPABASE_SERVICE_KEY"]
     supabase_admin: Client = create_client(url, service_key)
 except Exception as e:
-    st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
+    st.error("Secrets میں Supabase کی معلومات غلط ہیں۔")
     st.stop()
 
 if 'user' not in st.session_state:
@@ -35,7 +34,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth سسٹم ---
+# --- 2. Auth ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -62,7 +61,7 @@ if st.session_state['user'] is None:
     auth_page()
     st.stop()
 
-# --- 3. نیویگیشن ---
+# --- 3. Navigation ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
 st.sidebar.markdown("---")
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
@@ -80,7 +79,7 @@ if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
 
-# --- 4. ہیلپر فنکشنز ---
+# --- 4. Helpers ---
 def send_email(target_price, current_price, symbol):
     try:
         sender = st.secrets["SENDER_EMAIL"]
@@ -103,7 +102,7 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- 5. مین پیجز ---
+# --- 5. Pages ---
 if st.session_state['page'] == "admin":
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
@@ -116,11 +115,9 @@ if st.session_state['page'] == "admin":
 
 elif st.session_state['page'] == "portfolio":
     st.title("💼 My Stock Portfolio")
-    
-    # پورٹ فولیو میں سٹاک شامل کرنا
     with st.expander("➕ Add Stock to Portfolio"):
         col1, col2, col3 = st.columns(3)
-        p_symbol = col1.text_input("Symbol (مثلاً FFC)").upper()
+        p_symbol = col1.text_input("Symbol").upper()
         p_qty = col2.number_input("Quantity", min_value=1, step=1)
         p_price = col3.number_input("Buy Price", min_value=0.1)
         if st.button("Save to Portfolio"):
@@ -131,18 +128,16 @@ elif st.session_state['page'] == "portfolio":
                     "quantity": p_qty,
                     "buy_price": p_price
                 }).execute()
-                st.success("پورٹ فولیو میں محفوظ کر لیا گیا!")
+                st.success("محفوظ کر لیا گیا!")
             except Exception as e: st.error(f"غلطی: {e}")
 
-    # پورٹ فولیو دکھانا
     try:
         res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
         if res.data:
-            df_p = pd.DataFrame(res.data)
-            st.table(df_p[['symbol', 'quantity', 'buy_price']])
+            st.table(pd.DataFrame(res.data)[['symbol', 'quantity', 'buy_price']])
         else:
-            st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
-    except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
+            st.write("پورٹ فولیو خالی ہے۔")
+    except Exception as e: st.error(f"غلطی: {e}")
 
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
@@ -151,7 +146,6 @@ else:
     symbol = st.sidebar.text_input("کمپنی کا سمبل", "FFC").upper()
     start_date = st.sidebar.date_input("شروع کی تاریخ", date(2023, 1, 1))
     end_date = st.sidebar.date_input("آخری تاریخ", date.today())
-    
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔔 Price Alert")
     alert_price = st.sidebar.number_input("ٹارگٹ قیمت", value=0.0)
@@ -168,21 +162,18 @@ else:
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
-            
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
                 send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-            
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
             elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
                 signal, color = "🔴 STRONG SELL", "red"
             else:
                 signal, color = "🟡 HOLD", "yellow"
-            
             col3.markdown(f"**Signal:** <h3 style='color:{color};'>{signal}</h3>", unsafe_allow_html=True)
             col4.metric("Status", "Overbought" if df['RSI'].iloc[-1] > 70 else "Oversold" if df['RSI'].iloc[-1] < 30 else "Normal")
 
@@ -196,7 +187,6 @@ else:
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
             fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
-
             st.markdown("---")
             st.subheader("🏢 Company Intelligence")
             info = stock_obj.info
@@ -211,6 +201,5 @@ else:
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
             else: st.write("کوئی خبر دستیاب نہیں ہے۔")
-
-except Exception as e:
-    st.error(f"System Error: {e}")
+    except Exception as e:
+        st.error(f"System Error: {e}")
