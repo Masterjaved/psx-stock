@@ -17,7 +17,6 @@ def init_supabase():
         url = st.secrets["SUPABASE_URL"]
         key = st.secrets["SUPABASE_KEY"]
         client = create_client(url, key)
-        
         s_key = st.secrets["SUPABASE_SERVICE_KEY"]
         admin_client = create_client(url, s_key)
         return client, admin_client
@@ -130,27 +129,32 @@ def show_admin_page():
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
     
+    # Edit Section (Form removed to avoid st.button error)
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
-            with st.form("edit_form"):
-                e_symbol = st.text_input("Symbol", value=item['symbol']).upper()
-                e_qty = st.number_input("Quantity", value=int(item['quantity']), min_value=1)
-                e_price = st.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
-                e_shariah = st.selectbox("Shariah Status", ["Compliant", "Non-Compliant"], 
+            
+            # Use columns instead of form for editing
+            col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
+            e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
+            e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
+            e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
+            e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
                                          index=0 if item.get('shariah') == "Compliant" else 1)
-                if st.form_submit_button("Update Stock"):
-                    supabase.table("portfolios").update({
-                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
-                    }).eq("id", st.session_state['edit_id']).execute()
-                    st.session_state['edit_id'] = None
-                    st.success("اپ ڈیٹ ہو گیا!")
-                    st.rerun()
-                if st.button("Cancel"):
-                    st.session_state['edit_id'] = None
-                    st.rerun()
+            
+            col_btn1, col_btn2 = st.columns([1, 5])
+            if col_btn1.button("Update Stock"):
+                supabase.table("portfolios").update({
+                    "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
+                }).eq("id", st.session_state['edit_id']).execute()
+                st.session_state['edit_id'] = None
+                st.success("اپ ڈیٹ ہو گیا!")
+                st.rerun()
+            if col_btn2.button("Cancel"):
+                st.session_state['edit_id'] = None
+                st.rerun()
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
     else:
         with st.expander("➕ Add Stock to Portfolio"):
@@ -189,7 +193,7 @@ def show_portfolio_page():
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
                             if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
+                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_//_SMA_50].iloc[-1]:
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
