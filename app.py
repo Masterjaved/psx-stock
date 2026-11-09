@@ -76,6 +76,7 @@ is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
     st.sidebar.success("👑 Admin Access")
+    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_//_state['page'] = "admin" # Removed manually for safety
     if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
@@ -214,7 +215,7 @@ def show_portfolio_page():
         except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
 # --- 7. Analyzer Page ---
-def show_analyzer_//_page():
+def show_analyzer_page():
     st.title("🚀 PSX Quantum Stock Terminal")
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Settings")
