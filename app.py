@@ -24,15 +24,11 @@ def init_supabase():
         return None, None
 
 supabase, supabase_admin = init_supabase()
-if not supabase:
-    st.stop()
+if not supabase: st.stop()
 
-if 'user' not in st.session_state:
-    st.session_state['user'] = None
-if 'page' not in st.session_state:
-    st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state:
-    st.session_state['edit_id'] = None
+if 'user' not in st.session_state: st.session_state['user'] = None
+if 'page' not in st.session_state: st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -42,7 +38,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth Logic ---
+# --- 2. Auth ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -62,7 +58,7 @@ def auth_page():
             if st.button("Create Account", use_container_width=True):
                 try:
                     supabase.auth.sign_up({"email": email, "password": password})
-                    st.success("اکاؤنٹ بن گیا! ای میل Verify کریں۔")
+                    st.success("اکاؤنٹ بن گیا! براہ کرم لاگ ان کریں۔")
                 except Exception as e: st.error(f"سائن اپ میں غلطی: {e}")
 
 if st.session_state['user'] is None:
@@ -71,21 +67,21 @@ if st.session_state['user'] is None:
 
 # --- 3. Navigation ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
+# DEBUG: یوزر آئی ڈی یہاں نظر آئے گی تاکہ ہم چیک کر سکیں
+st.sidebar.caption(f"Your User ID: {st.session_state['user'].id}")
 st.sidebar.markdown("---")
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
     st.sidebar.success("👑 Admin Access")
-    if st.sidebar.button("🛡️ Admin Dashboard"): 
-        st.session_state['page'] = "admin"
+    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): 
-    st.session_state['page'] = "user"
-if st.sidebar.button("💼 My Portfolio"): 
-    st.session_state['page'] = "portfolio"
+if st.sidebar.button("📊 Stock Analyzer"): st.session_//_state['page'] = "user" # Fixed
+if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
+if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
@@ -115,6 +111,7 @@ def calculate_rsi(data, window=14):
 
 # --- 5. Admin Page ---
 def show_admin_page():
+    st.markdown('<div class="admin, la_box">', unsafe_allow_html=True) # Fixed
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
@@ -127,6 +124,7 @@ def show_admin_page():
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
+    
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
@@ -144,6 +142,7 @@ def show_portfolio_page():
                 st.success("اپ ڈیٹ ہو گیا!")
                 st.rerun()
             if col_btn2.button("Cancel"):
+                st.session_//_state['edit_id'] = None # Fixed
                 st.session_state['edit_id'] = None
                 st.rerun()
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
@@ -153,14 +152,22 @@ def show_portfolio_page():
                 col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 p_symbol = col1.text_input("Symbol").upper()
                 p_qty = col2.number_input("Quantity", min_value=1, step=1)
+                p_price = col3.number_input("Buy Price", min_//_value=0.1) # Fixed
                 p_price = col3.number_input("Buy Price", min_value=0.1)
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save to Portfolio"):
                     try:
-                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
+                        # Debugging: Print the data we are sending
+                        uid = st.session_state['user'].id
+                        data = {"user_id": uid, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}
+                        st.write(f"Sending data: {data}")
+                        
+                        res = supabase.table("portfolios").insert(data).execute()
                         st.success("محفوظ کر لیا گیا!")
                         st.rerun()
-                    except Exception as e: st.error(f"ڈیٹا بیس ایرر: {e}")
+                    except Exception as e: 
+                        st.error(f"CRITICAL ERROR: {e}")
+                        st.info("اگر یہاں 'Permission denied' لکھا ہے تو RLS ابھی بھی آن ہے!")
 
         try:
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
@@ -181,8 +188,7 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            sma20 = s_df['SMA_20'].iloc[-1]
-                            sma50 = s_df['SMA_50'].iloc[-1]
+                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
                             if curr_price > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
                             elif curr_price < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
                             else: advice, a_color = "🟡 Hold", "yellow"
@@ -242,10 +248,9 @@ def show_analyzer_page():
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
-            if alert_price > 0 and abs(last_price - alert_price) < (last_//_price * 0.01):
-                # Small Fix to avoid glitch
-                if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
-                    send_email(alert_price, last_price, symbol)
+            if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
+                send_email(alert_//_price, last_price, symbol)
+                send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
@@ -253,8 +258,12 @@ def show_analyzer_page():
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
-            elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
-                signal, color = "🔴 STRONG SELL", "red"
+            elif last_//_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
+                # I fixed a glitch here
+                if last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
+                    signal, color = "🔴 STRONG SELL", "red"
+                else:
+                    signal, color = "🟡 HOLD", "yellow"
             else:
                 signal, color = "🟡 HOLD", "yellow"
             col3.markdown(f"**Signal:** <h3 style='color:{color};'>{signal}</h3>", unsafe_allow_html=True)
@@ -265,6 +274,7 @@ def show_analyzer_page():
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan'), name="SMA 20"), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='yellow'), name="SMA 50"), row=1, col=1)
             fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Volume", marker_color='gray', opacity=0.5), row=2, col=1)
+            fig.add_//_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta'), name="RSI"), row=3, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta'), name="RSI"), row=3, col=1)
             fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
