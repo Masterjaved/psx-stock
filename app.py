@@ -20,7 +20,7 @@ try:
     service_key = st.secrets["SUPABASE_SERVICE_KEY"]
     supabase_admin: Client = create_client(url, service_key)
 except Exception as e:
-    st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔ براہ کرم چیک کریں۔")
+    st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
     st.stop()
 
 # سیشن اسٹیٹ
@@ -38,7 +38,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth سسٹم (Login/Signup) ---
+# --- 2. Auth سسٹم ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -68,11 +68,10 @@ if st.session_state['user'] is None:
     auth_page()
     st.stop()
 
-# --- 3. نیویگیشن اور سائیڈ بار ---
+# --- 3. نیویگیشن ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
 st.sidebar.markdown("---")
 
-# ایڈمن چیک
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
@@ -90,7 +89,7 @@ if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
 
-# --- 4. ہیلپر فنکشنز (Email & RSI) ---
+# --- 4. ہیلپر فنکشنز ---
 def send_email(target_price, current_price, symbol):
     try:
         sender = st.secrets["SENDER_EMAIL"]
@@ -114,13 +113,15 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- 5. مین پیجز (Admin vs User) ---
+# --- 5. مین پیجز ---
 if st.session_state['page'] == "admin":
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
-        users_data = supabase_admin.auth.admin.list_user_emails()
-        user_list = [u.email for u in users_data]
+        # درست طریقہ: list_users() استعمال کریں اور پھر .users سے لسٹ نکالیں
+        response = supabase_admin.auth.admin.list_users()
+        user_list = [user.email for user in response.users]
+        
         st.subheader("Registered Users")
         st.table(pd.DataFrame({"User Email": user_list}))
         st.write(f"کل صارفین: {len(user_list)}")
@@ -131,7 +132,6 @@ if st.session_state['page'] == "admin":
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
     
-    # سائیڈ بار سیٹنگز
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Analysis Settings")
     symbol = st.sidebar.text_input("کمپنی کا سمبل", "FFC").upper()
@@ -144,26 +144,22 @@ else:
     if st.sidebar.button("Set Alert"):
         st.sidebar.success("الرٹ سیٹ ہو گیا!")
 
-    # ڈیٹا پروسیسنگ
     try:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
 
         if df.empty:
-            st.error("ڈیٹا نہیں ملا! براہ کرم درست سمبل لکھیں۔")
+            st.error("ڈیٹا نہیں ملا!")
         else:
-            # ٹیکنیکل انڈیکیٹرز
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
             
-            # ای میل الرٹ چیک
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
                 send_email(alert_price, last_price, symbol)
 
-            # ٹاپ میٹرکس
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
@@ -178,7 +174,6 @@ else:
             col3.markdown(f"**Signal:** <h3 style='color:{color};'>{signal}</h3>", unsafe_allow_html=True)
             col4.metric("Status", "Overbought" if df['RSI'].iloc[-1] > 70 else "Oversold" if df['RSI'].iloc[-1] < 30 else "Normal")
 
-            # پروفیشنل چارٹ
             fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.6, 0.2, 0.2])
             fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan'), name="SMA 20"), row=1, col=1)
@@ -190,7 +185,6 @@ else:
             fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
 
-            # کمپنی کی معلومات
             st.markdown("---")
             st.subheader("🏢 Company Intelligence")
             info = stock_obj.info
@@ -210,5 +204,5 @@ else:
             else:
                 st.write("کوئی خبر دستیاب نہیں ہے۔")
 
-    except Exception as e:
-        st.error(f"System Error: {e}")
+except Exception as e:
+    st.error(f"System Error: {e}")
