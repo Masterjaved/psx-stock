@@ -79,7 +79,7 @@ else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): st.session_//_state['page'] = "user" # Fixed
+if st.sidebar.button("📊 Stock Analyzer"): st.session_/_state['page'] = "user" # Fixed
 if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
 if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
@@ -111,7 +111,7 @@ def calculate_rsi(data, window=14):
 
 # --- 5. Admin Page ---
 def show_admin_page():
-    st.markdown('<div class="admin-box">', unsafe_//_allow_html=True)
+    st.markdown('<div class="admin-box">', unsafe_/_allow_html=True)
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
@@ -186,7 +186,7 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_//_SMA_50].iloc[-1] # Fixed manually
+                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_/_SMA_50].iloc[-1] # Fixed manually
                             sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
                             if curr_price > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
                             elif curr_price < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
@@ -199,7 +199,7 @@ def show_portfolio_page():
                                 sh_color = "green" if item.get('shariah') == "Compliant" else "red"
                                 c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
                                 c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
-                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_//_allow_html=True)
+                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_/_allow_html=True)
                                 c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
                                 c5.write(f"Div: {div_yield*100:.1f}%")
                                 if c6.button("🗑️", key=f"dl_{item['id']}"):
@@ -249,7 +249,7 @@ def show_analyzer_page():
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
-                send_email(alert_price, last_//_price, symbol)
+                send_email(alert_price, last_/_price, symbol)
                 send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
