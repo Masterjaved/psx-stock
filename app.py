@@ -11,16 +11,26 @@ from supabase import create_client, Client
 # --- 1. Setup ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
-try:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
-    supabase: Client = create_client(url, key)
-    service_key = st.secrets["SUPABASE_SERVICE_KEY"]
-    supabase_admin: Client = create_client(url, service_key)
-except Exception as e:
-    st.error("Secrets میں Supabase کی معلومات غلط ہیں۔")
+# Supabase Connection
+def init_supabase():
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        client = create_client(url, key)
+        
+        s_key = st.secrets["SUPABASE_SERVICE_KEY"]
+        admin_client = create_client(url, s_key)
+        return client, admin_client
+    except Exception as e:
+        st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
+        return None, None
+
+supabase, supabase_admin = init_supabase()
+
+if not supabase:
     st.stop()
 
+# Session State
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
@@ -33,11 +43,10 @@ st.markdown("""
     .main { background-color: #0e1117; color: white; }
     .stMetric { background-color: #1e2130; padding: 15px; border-radius: 10px; border: 1px solid #3e4253; }
     .admin-box { background-color: #2d1b4e; padding: 20px; border-radius: 15px; border: 2px solid #8a2be2; }
-    .shariah-tag { padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth ---
+# --- 2. Auth Logic ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -46,6 +55,7 @@ def auth_page():
         auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"], horizontal=True)
         email = st.text_input("ای میل (Email)")
         password = st.text_input("پاس ورڈ (Password)", type="password")
+        
         if auth_mode == "Login":
             if st.button("Login", use_container_width=True):
                 try:
@@ -105,8 +115,8 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- 5. Pages ---
-if st.session_state['page'] == "admin":
+# --- 5. Admin Page ---
+def show_admin_page():
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
@@ -116,7 +126,8 @@ if st.session_state['page'] == "admin":
     except Exception as e: st.error(f"غلطی: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
 
-elif st.session_state['page'] == "portfolio":
+# --- 6. Portfolio Page ---
+def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
     
     if st.session_state['edit_id'] is not None:
@@ -141,7 +152,6 @@ elif st.session_state['page'] == "portfolio":
                     st.session_state['edit_id'] = None
                     st.rerun()
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
-    
     else:
         with st.expander("➕ Add Stock to Portfolio"):
             col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
@@ -152,11 +162,7 @@ elif st.session_state['page'] == "portfolio":
             if st.button("Save to Portfolio"):
                 try:
                     supabase.table("portfolios").insert({
-                        "user_id": st.session_state['user'].id,
-                        "symbol": p_symbol,
-                        "quantity": p_qty,
-                        "buy_price": p_price,
-                        "shariah": p_shariah
+                        "user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
                     }).execute()
                     st.success("محفوظ کر لیا گیا!")
                     st.rerun()
@@ -167,24 +173,18 @@ elif st.session_state['page'] == "portfolio":
             if res.data:
                 total_invested, total_current_value = 0, 0
                 st.subheader("Detailed Analysis")
-                
                 for item in res.data:
                     try:
                         s_symbol = item['symbol'] + ".KA"
                         s_obj = yf.Ticker(s_symbol)
                         s_df = s_obj.history(period="1mo")
-                        
                         if not s_df.empty:
                             curr_price = s_df['Close'].iloc[-1]
                             buy_price, qty = item['buy_price'], item['quantity']
                             profit_loss = (curr_price - buy_price) * qty
                             pl_percent = ((curr_price - buy_price) / buy_price) * 100
-                            
-                            # ڈیویڈنڈ ڈیٹا
                             div_yield = s_obj.info.get('dividendYield', 0) or 0
                             div_est = div_yield * curr_price * qty
-                            
-                            # ٹیکنیکل مشورہ
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
                             if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
@@ -193,27 +193,19 @@ elif st.session_state['page'] == "portfolio":
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
-                            
                             total_invested += (buy_price * qty)
                             total_current_value += (curr_price * qty)
-
-                            # ڈسپلے
                             with st.container():
                                 c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.5, 1.5, 1, 1])
                                 c1.write(f"**{item['symbol']}**")
-                                
-                                # شریعہ ٹیگ
                                 sh_color = "green" if item.get('shariah') == "Compliant" else "red"
                                 c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
-                                
                                 c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
                                 c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
                                 c5.write(f"Div: {div_yield*100:.1f}%")
-                                
                                 if c6.button("🗑️", key=f"dl_{item['id']}"):
                                     supabase.table("portfolios").delete().eq("id", item['id']).execute()
                                     st.rerun()
-                                
                                 with st.expander("View Details"):
                                     st.write(f"Buy Price: Rs. {buy_price} | Current Price: Rs. {curr_price:.2f}")
                                     st.write(f"Estimated Annual Dividend: Rs. {div_est:.2f}")
@@ -223,7 +215,6 @@ elif st.session_state['page'] == "portfolio":
                                         st.rerun()
                                 st.markdown("---")
                     except: st.write(f"Error fetching {item['symbol']}")
-
                 c_inv, c_cur, c_net = st.columns(3)
                 c_inv.metric("Total Invested", f"Rs. {total_invested:,.2f}")
                 c_cur.metric("Current Value", f"Rs. {total_current_value:,.2f}")
@@ -233,7 +224,8 @@ elif st.session_state['page'] == "portfolio":
                 st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
         except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
-else:
+# --- 7. Analyzer Page ---
+def show_analyzer_page():
     st.title("🚀 PSX Quantum Stock Terminal")
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Settings")
@@ -252,6 +244,7 @@ else:
         if df.empty:
             st.error("ڈیٹا نہیں ملا!")
         else:
+            last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
@@ -261,6 +254,7 @@ else:
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
+            col1.caption(f"🕒 Last Updated: {last_updated}")
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
@@ -295,6 +289,13 @@ else:
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
             else: st.write("کوئی خبر دستیاب نہیں ہے۔")
+    except Exception as e:
+        st.error(f"System Error: {e}")
 
-except Exception as e:
-    st.error(f"System Error: {e}")
+# --- 6. Page Router ---
+if st.session_state['page'] == "admin":
+    show_admin_page()
+elif st.session_state['page'] == "portfolio":
+    show_portfolio_page()
+else:
+    show_analyzer_page()
