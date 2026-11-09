@@ -11,7 +11,6 @@ from supabase import create_client, Client
 # --- 1. Setup ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
-# Supabase Connection
 def init_supabase():
     try:
         url = st.secrets["SUPABASE_URL"]
@@ -25,11 +24,9 @@ def init_supabase():
         return None, None
 
 supabase, supabase_admin = init_supabase()
-
 if not supabase:
     st.stop()
 
-# Session State
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
@@ -45,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth Logic ---
+# --- 2. Auth ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -54,7 +51,6 @@ def auth_page():
         auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"], horizontal=True)
         email = st.text_input("ای میل (Email)")
         password = st.text_input("پاس ورڈ (Password)", type="password")
-        
         if auth_mode == "Login":
             if st.button("Login", use_container_width=True):
                 try:
@@ -188,12 +184,17 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
+                            
+                            # CORRECTED LOGIC
+                            sma20 = s_df['SMA_20'].iloc[-1]
+                            sma50 = s_df['SMA_50'].iloc[-1]
+                            if curr_price > sma20 and sma20 > sma50:
                                 advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < s_//_SMA_20].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
+                            elif curr_price < sma20 and sma20 < sma50:
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
+                            
                             total_invested += (buy_price * qty)
                             total_current_value += (curr_price * qty)
                             with st.container():
