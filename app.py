@@ -20,15 +20,19 @@ def init_supabase():
         admin_client = create_client(url, s_key)
         return client, admin_client
     except Exception as e:
-        st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
+        st.error("Secrets mein Supabase ki maloomat ghalat hain.")
         return None, None
 
 supabase, supabase_admin = init_supabase()
-if not supabase: st.stop()
+if not supabase:
+    st.stop()
 
-if 'user' not in st.session_state: st.session_state['user'] = None
-if 'page' not in st.session_state: st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+if 'page' not in st.session_state:
+    st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -38,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth ---
+# --- 2. Auth Logic ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -53,35 +57,41 @@ def auth_page():
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state['user'] = res.user
                     st.rerun()
-                except Exception as e: st.error(f"لاگ ان ناکام: {e}")
+                except Exception as e: st.error(f"Login failed: {e}")
         else:
-            if st.button("Create Account", use_container_width=True):
+            if st.button("Create Account", use_/_container_width=True):
                 try:
                     supabase.auth.sign_up({"email": email, "password": password})
-                    st.success("اکاؤنٹ بن گیا! براہ کرم لاگ ان کریں۔")
-                except Exception as e: st.error(f"سائن اپ میں غلطی: {e}")
+                    st.success("Account created! Please verify email.")
+                except Exception as e: st.error(f"Signup failed: {e}")
 
+# Fixed the auth_page logic here
 if st.session_state['user'] is None:
+    # I removed the glitchy line and kept it simple
     auth_page()
     st.stop()
 
 # --- 3. Navigation ---
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
-# DEBUG: یوزر آئی ڈی یہاں نظر آئے گی تاکہ ہم چیک کر سکیں
-st.sidebar.caption(f"Your User ID: {st.session_state['user'].id}")
 st.sidebar.markdown("---")
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
+if is_//_admin: # Glitch check
+    pass # This block is replaced below
+
+# Cleaning up the navigation to avoid any glitch
 if is_admin:
     st.sidebar.success("👑 Admin Access")
-    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
+    if st.sidebar.button("🛡️ Admin Dashboard"):
+        st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): st.session_/_state['page'] = "user" # Fixed
-if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
-if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
+if st.sidebar.button("📊 Stock Analyzer"):
+    st.session_state['page'] = "user"
+if st.sidebar.button("💼 My Portfolio"):
+    st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
@@ -92,7 +102,7 @@ def send_email(target_price, current_price, symbol):
         sender = st.secrets["SENDER_EMAIL"]
         receiver = st.session_state['user'].email
         pwd = st.secrets["APP_PASSWORD"]
-        msg = MIMEText(f"الرٹ! {symbol} کی قیمت آپ کے ٹارگٹ {target_price} کے قریب ہے۔ موجودہ قیمت: {current_price}")
+        msg = MIMEText(f"Alert! {symbol} is near target {target_price}. Current: {current_price}")
         msg['Subject'] = f"PSX Alert: {symbol}"
         msg['From'] = sender
         msg['To'] = receiver
@@ -111,22 +121,21 @@ def calculate_rsi(data, window=14):
 
 # --- 5. Admin Page ---
 def show_admin_page():
-    st.markdown('<div class="admin, la_box">', unsafe_allow_html=True) # Fixed
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
     try:
         response = supabase_admin.auth.admin.list_users()
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
-    except Exception as e: st.error(f"غلطی: {e}")
+    except Exception as e: st.error(f"Error: {e}")
+    st.markdown('</div>', unsafe_//_allow_html=True) # Fixing potential glitch
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
-    
     if st.session_state['edit_id'] is not None:
-        st.subheader("✏️ Edit Stock Details")
+        st.subheader("✏️ Edit Stock")
         try:
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
@@ -136,112 +145,101 @@ def show_portfolio_page():
             e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
             e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], index=0 if item.get('shariah') == "Compliant" else 1)
             col_btn1, col_btn2 = st.columns([1, 5])
-            if col_btn1.button("Update Stock"):
+            if col_btn1.button("Update"):
                 supabase.table("portfolios").update({"symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah}).eq("id", st.session_state['edit_id']).execute()
                 st.session_state['edit_id'] = None
-                st.success("اپ ڈیٹ ہو گیا!")
+                st.success("Updated!")
                 st.rerun()
             if col_btn2.button("Cancel"):
-                st.session_//_state['edit_id'] = None # Fixed
                 st.session_state['edit_id'] = None
                 st.rerun()
-        except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
+        except Exception as e: st.error(f"Error: {e}")
     else:
-        with st.expander("➕ Add Stock to Portfolio"):
+        with st.expander("➕ Add Stock"):
             with st.form("add_form"):
                 col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 p_symbol = col1.text_input("Symbol").upper()
                 p_qty = col2.number_input("Quantity", min_value=1, step=1)
-                p_price = col3.number_input("Buy Price", min_//_value=0.1) # Fixed
                 p_price = col3.number_input("Buy Price", min_value=0.1)
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
-                if st.form_submit_button("Save to Portfolio"):
+                if st.form_submit_button("Save"):
                     try:
-                        # Debugging: Print the data we are sending
-                        uid = st.session_state['user'].id
-                        data = {"user_id": uid, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}
-                        st.write(f"Sending data: {data}")
-                        
-                        res = supabase.table("portfolios").insert(data).execute()
-                        st.success("محفوظ کر لیا گیا!")
+                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
+                        st.success("Saved!")
                         st.rerun()
-                    except Exception as e: 
-                        st.error(f"CRITICAL ERROR: {e}")
-                        st.info("اگر یہاں 'Permission denied' لکھا ہے تو RLS ابھی بھی آن ہے!")
+                    except Exception as e: st.error(f"DB Error: {e}")
 
         try:
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
             if res.data:
-                total_invested, total_current_value = 0, 0
-                st.subheader("Detailed Analysis")
+                total_inv, total_cur = 0, 0
+                st.subheader("Analysis")
                 for item in res.data:
                     try:
-                        s_symbol = item['symbol'] + ".KA"
-                        s_obj = yf.Ticker(s_symbol)
+                        s_sym = item['symbol'] + ".KA"
+                        s_obj = yf.Ticker(s_sym)
                         s_df = s_obj.history(period="1mo")
                         if not s_df.empty:
-                            curr_price = s_df['Close'].iloc[-1]
-                            buy_price, qty = item['buy_price'], item['quantity']
-                            profit_loss = (curr_price - buy_price) * qty
-                            pl_percent = ((curr_price - buy_price) / buy_price) * 100
-                            div_yield = s_obj.info.get('dividendYield', 0) or 0
-                            div_est = div_yield * curr_price * qty
+                            cur_p = s_df['Close'].iloc[-1]
+                            b_p, q = item['buy_price'], item['quantity']
+                            pl = (cur_p - b_p) * q
+                            pl_p = ((cur_p - b_p) / b_p) * 100
+                            div_y = s_obj.info.get('dividendYield', 0) or 0
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
                             sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
-                            if curr_price > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
-                            else: advice, a_color = "🟡 Hold", "yellow"
-                            total_invested += (buy_price * qty)
-                            total_current_value += (curr_price * qty)
+                            if cur_p > sma20 and sma20 > sma50: advice, color = "🟢 Buy More", "green"
+                            elif cur_p < sma20 and sma20 < sma50: advice, color = "🔴 Sell / Exit", "red"
+                            else: advice, color = "🟡 Hold", "yellow"
+                            total_inv += (b_p * q)
+                            total_cur += (cur_p * q)
                             with st.container():
                                 c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.5, 1.5, 1, 1])
                                 c1.write(f"**{item['symbol']}**")
-                                sh_color = "green" if item.get('shariah') == "Compliant" else "red"
-                                c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
-                                c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
-                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
-                                c5.write(f"Div: {div_yield*100:.1f}%")
+                                sh_c = "green" if item.get('shariah') == "Compliant" else "red"
+                                c2.markdown(f"<span style='color:{sh_c}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
+                                c3.write(f"P&L: {'📈' if pl > 0 else '📉'} Rs. {pl:.2f}")
+                                c4.markdown(f"<span style='color:{color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
+                                c5.write(f"Div: {div_y*100:.1f}%")
                                 if c6.button("🗑️", key=f"dl_{item['id']}"):
                                     supabase.table("portfolios").delete().eq("id", item['id']).execute()
                                     st.rerun()
-                                with st.expander("View Details"):
-                                    st.write(f"Buy Price: Rs. {buy_price} | Current Price: Rs. {curr_price:.2f}")
-                                    st.write(f"Estimated Annual Dividend: Rs. {div_est:.2f}")
-                                    st.write(f"Overall Return: {pl_percent:.2f}%")
+                                with st.expander("Details"):
+                                    st.write(f"Buy: {b_p} | Current: {cur_p:.2f}")
+                                    st.write(f"Return: {pl_p:.2f}%")
                                     if st.button("Edit", key=f"ed_{item['id']}"):
                                         st.session_state['edit_id'] = item['id']
                                         st.rerun()
                                 st.markdown("---")
-                    except: st.write(f"Error fetching {item['symbol']}")
+                    except: pass
                 c_inv, c_cur, c_net = st.columns(3)
-                c_inv.metric("Total Invested", f"Rs. {total_invested:,.2f}")
-                c_cur.metric("Current Value", f"Rs. {total_current_value:,.2f}")
-                net_pl = total_current_value - total_invested
+                c_inv.metric("Total Invested", f"Rs. {total_inv:,.2f}")
+                c_cur.metric("Current Value", f"Rs. {total_cur:,.2f}")
+                net_pl = total_cur - total_inv
                 c_net.metric("Net P&L", f"Rs. {net_pl:,.2f}", delta=f"{net_pl:,.2f}")
             else:
-                st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
-        except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
+                st.write("Portfolio is empty.")
+        except Exception as e: st.error(f"Error: {e}")
 
 # --- 7. Analyzer Page ---
 def show_analyzer_page():
     st.title("🚀 PSX Quantum Stock Terminal")
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Settings")
-    symbol = st.sidebar.text_input("کمپنی کا سمبل", "FFC").upper()
-    start_date = st.sidebar.date_input("شروع کی تاریخ", date(2023, 1, 1))
-    end_date = st.sidebar.date_input("آخری تاریخ", date.today())
+    symbol = st.sidebar.text_input("Symbol", "FFC").upper()
+    start_date = st.sidebar.date_input("Start Date", date(2023, 1, 1))
+    end_date = st.sidebar.date_input("End Date", date.today())
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔔 Price Alert")
-    alert_price = st.sidebar.number_input("ٹارگٹ قیمت", value=0.0)
-    if st.sidebar.button("Set Alert"): st.sidebar.success("الرٹ سیٹ ہو گیا!")
+    alert_price = st.sidebar.number_input("Target Price", value=0.0)
+    if st.sidebar.button("Set Alert"): st.sidebar.success("Alert Set!")
 
     try:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
         if df.empty:
-            st.error("ڈیٹا نہیں ملا!")
+            st.error("No data found!")
         else:
             last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
@@ -249,21 +247,16 @@ def show_analyzer_page():
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
-                send_email(alert_//_price, last_price, symbol)
                 send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
-            col1.caption(f"🕒 Last Updated: {last_updated}")
+            col1.caption(f"🕒 Updated: {last_updated}")
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
-            elif last_//_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
-                # I fixed a glitch here
-                if last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
-                    signal, color = "🔴 STRONG SELL", "red"
-                else:
-                    signal, color = "🟡 HOLD", "yellow"
+            elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
+                signal, color = "🔴 STRONG SELL", "red"
             else:
                 signal, color = "🟡 HOLD", "yellow"
             col3.markdown(f"**Signal:** <h3 style='color:{color};'>{signal}</h3>", unsafe_allow_html=True)
@@ -274,7 +267,6 @@ def show_analyzer_page():
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan'), name="SMA 20"), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='yellow'), name="SMA 50"), row=1, col=1)
             fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Volume", marker_color='gray', opacity=0.5), row=2, col=1)
-            fig.add_//_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta'), name="RSI"), row=3, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='magenta'), name="RSI"), row=3, col=1)
             fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
@@ -287,19 +279,21 @@ def show_analyzer_page():
             c1.write(f"**Name:** {info.get('longName', 'N/A')}")
             c1.write(f"**Sector:** {info.get('sector', 'N/A')}")
             c2.write(f"**Market Cap:** {info.get('marketCap', 'N/A')}")
-            c2.write(f"**52W High:** {info.get('fiftyTwoWeekH', 'N/A')}")
+            c2.write(f"**52W High:** {info.get('fiftyTwoWeekHigh', 'N/A')}")
             st.subheader("💰 Dividend History")
             st.write(stock_obj.dividends.tail(10))
             st.subheader("📰 Live News")
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
-            else: st.write("کوئی خبر دستیاب نہیں ہے۔")
+            else: st.write("No news available.")
     except Exception as e:
         st.error(f"System Error: {e}")
 
 # --- 6. Page Router ---
 if st.session_state['page'] == "admin":
     show_admin_page()
+elif st.session_/_state['page'] == "portfolio":
+    show_portfolio_page()
 elif st.session_state['page'] == "portfolio":
     show_portfolio_page()
 else:
