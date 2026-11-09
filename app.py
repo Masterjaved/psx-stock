@@ -11,6 +11,7 @@ from supabase import create_client, Client
 # --- 1. Setup ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
+# Supabase Connection
 def init_supabase():
     try:
         url = st.secrets["SUPABASE_URL"]
@@ -20,15 +21,21 @@ def init_supabase():
         admin_client = create_client(url, s_key)
         return client, admin_client
     except Exception as e:
-        st.error("Secrets میں Supabase کی معلومات غلط ہیں۔")
+        st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
         return None, None
 
 supabase, supabase_admin = init_supabase()
-if not supabase: st.stop()
 
-if 'user' not in st.session_state: st.session_state['user'] = None
-if 'page' not in st.session_state: st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
+if not supabase:
+    st.stop()
+
+# Session State
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+if 'page' not in st.session_state:
+    st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -38,7 +45,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth ---
+# --- 2. Auth Logic ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -47,6 +54,7 @@ def auth_page():
         auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"], horizontal=True)
         email = st.text_input("ای میل (Email)")
         password = st.text_input("پاس ورڈ (Password)", type="password")
+        
         if auth_mode == "Login":
             if st.button("Login", use_container_width=True):
                 try:
@@ -115,7 +123,7 @@ def show_admin_page():
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
     except Exception as e: st.error(f"غلطی: {e}")
-    st.markdown('</div>', unsafe_//_admin-box')
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
@@ -134,7 +142,9 @@ def show_portfolio_page():
                                          index=0 if item.get('shariah') == "Compliant" else 1)
             col_btn1, col_btn2 = st.columns([1, 5])
             if col_btn1.button("Update Stock"):
-                supabase.table("portfolios").update({"symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah}).eq("id", st.session_state['edit_id']).execute()
+                supabase.table("portfolios").update({
+                    "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
+                }).eq("id", st.session_state['edit_id']).execute()
                 st.session_state['edit_id'] = None
                 st.success("اپ ڈیٹ ہو گیا!")
                 st.rerun()
@@ -152,14 +162,14 @@ def show_portfolio_page():
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save to Portfolio"):
                     try:
-                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
+                        supabase.table("portfolios").insert({
+                            "user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
+                        }).execute()
                         st.success("محفوظ کر لیا گیا!")
                         st.rerun()
                     except Exception as e: st.error(f"غلطی: {e}")
 
         try:
-            # Debug: Show User ID
-            # st.write(f"Fetching data for User ID: {st.session_state['user'].id}")
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
             if res.data:
                 total_invested, total_current_value = 0, 0
@@ -180,7 +190,7 @@ def show_portfolio_page():
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
                             if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
+                            elif curr_price < s_//_SMA_20].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
@@ -287,6 +297,6 @@ def show_analyzer_page():
 if st.session_state['page'] == "admin":
     show_admin_page()
 elif st.session_state['page'] == "portfolio":
-    show_portfolio_//_portfolio_page()
+    show_portfolio_page()
 else:
     show_analyzer_page()
