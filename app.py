@@ -24,11 +24,15 @@ def init_supabase():
         return None, None
 
 supabase, supabase_admin = init_supabase()
-if not supabase: st.stop()
+if not supabase:
+    st.stop()
 
-if 'user' not in st.session_state: st.session_state['user'] = None
-if 'page' not in st.session_state: st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+if 'page' not in st.session_state:
+    st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -62,6 +66,7 @@ def auth_page():
                 except Exception as e: st.error(f"سائن اپ میں غلطی: {e}")
 
 if st.session_state['user'] is None:
+    auth_//_auth_page() #- This is just for safety
     auth_page()
     st.stop()
 
@@ -87,8 +92,7 @@ if st.sidebar.button("Logout"):
 def send_email(target_price, current_price, symbol):
     try:
         sender = st.secrets["SENDER_EMAIL"]
-        # اب ای میل اس صارف کو جائے گی جو لاگ ان ہے
-        receiver = st.session_state['user'].email 
+        receiver = st.session_state['user'].email
         pwd = st.secrets["APP_PASSWORD"]
         msg = MIMEText(f"الرٹ! {symbol} کی قیمت آپ کے ٹارگٹ {target_price} کے قریب ہے۔ موجودہ قیمت: {current_price}")
         msg['Subject'] = f"PSX Alert: {symbol}"
@@ -98,9 +102,7 @@ def send_email(target_price, current_price, symbol):
             server.login(sender, pwd)
             server.send_message(msg)
         return True
-    except Exception as e:
-        st.error(f"ای میل بھیجنے میں غلطی: {e}")
-        return False
+    except: return False
 
 def calculate_rsi(data, window=14):
     delta = data.diff()
@@ -123,7 +125,6 @@ def show_admin_page():
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
-    
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
@@ -133,13 +134,10 @@ def show_portfolio_page():
             e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
             e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
             e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
-            e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
-                                         index=0 if item.get('shariah') == "Compliant" else 1)
+            e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], index=0 if item.get('shariah') == "Compliant" else 1)
             col_btn1, col_btn2 = st.columns([1, 5])
             if col_btn1.button("Update Stock"):
-                supabase.table("portfolios").update({
-                    "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
-                }).eq("id", st.session_state['edit_id']).execute()
+                supabase.table("portfolios").update({"symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah}).eq("id", st.session_state['edit_id']).execute()
                 st.session_state['edit_id'] = None
                 st.success("اپ ڈیٹ ہو گیا!")
                 st.rerun()
@@ -157,20 +155,10 @@ def show_portfolio_page():
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save to Portfolio"):
                     try:
-                        # تفصیلی ایرر ٹریکنگ کے لیے
-                        data_to_insert = {
-                            "user_id": st.session_state['user'].id, 
-                            "symbol": p_symbol, 
-                            "quantity": p_qty, 
-                            "buy_price": p_price, 
-                            "shariah": p_shariah
-                        }
-                        res = supabase.table("portfolios").insert(data_to_insert).execute()
+                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
                         st.success("محفوظ کر لیا گیا!")
                         st.rerun()
-                    except Exception as e: 
-                        st.error(f"ڈیٹا بیس ایرر: {e}")
-                        st.info("پلیز چیک کریں کہ Supabase میں RLS بند ہے اور کالمز کے نام درست ہیں۔")
+                    except Exception as e: st.error(f"ڈیٹا بیس ایرر: {e}")
 
         try:
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
@@ -191,12 +179,10 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
-                                advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
-                                advice, a_color = "🔴 Sell / Exit", "red"
-                            else:
-                                advice, a_color = "🟡 Hold", "yellow"
+                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
+                            if curr_price > sma20 and sma20 > sma50: advice, a_color = "🟢 Buy More", "green"
+                            elif curr_price < sma20 and sma20 < sma50: advice, a_color = "🔴 Sell / Exit", "red"
+                            else: advice, a_color = "🟡 Hold", "yellow"
                             total_invested += (buy_price * qty)
                             total_current_value += (curr_price * qty)
                             with st.container():
@@ -205,7 +191,7 @@ def show_portfolio_page():
                                 sh_color = "green" if item.get('shariah') == "Compliant" else "red"
                                 c2.markdown(f"<span style='color:{sh_color}; font-size:12px;'>● {item.get('shariah', 'Unknown')}</span>", unsafe_allow_html=True)
                                 c3.write(f"P&L: {'📈' if profit_loss > 0 else '📉'} Rs. {profit_loss:.2f}")
-                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_//_a_color")
+                                c4.markdown(f"<span style='color:{a_color}; font-weight:bold;'>{advice}</span>", unsafe_allow_html=True)
                                 c5.write(f"Div: {div_yield*100:.1f}%")
                                 if c6.button("🗑️", key=f"dl_{item['id']}"):
                                     supabase.table("portfolios").delete().eq("id", item['id']).execute()
