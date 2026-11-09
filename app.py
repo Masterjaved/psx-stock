@@ -79,7 +79,7 @@ else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): st.session_//_state['page'] = "user" # Fixed
+if st.sidebar.button("📊 Stock Analyzer"): st.session_/_state['page'] = "user" # Fixed
 if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
 if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
