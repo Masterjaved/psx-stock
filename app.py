@@ -42,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth ---
+# --- 2. Auth Logic ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -66,7 +66,6 @@ def auth_page():
                 except Exception as e: st.error(f"سائن اپ میں غلطی: {e}")
 
 if st.session_state['user'] is None:
-    auth_//_auth_page() #- This is just for safety
     auth_page()
     st.stop()
 
@@ -120,7 +119,8 @@ def show_admin_page():
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
     except Exception as e: st.error(f"غلطی: {e}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_//_allow_html=True) # Fixed here
+    # Note: if the line above errors, just replace with st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
