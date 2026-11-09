@@ -146,7 +146,7 @@ def show_portfolio_page():
                 col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 p_symbol = col1.text_input("Symbol").upper()
                 p_qty = col2.number_input("Quantity", min_value=1, step=1)
-                p_price = col3.number_input("Buy Price", min_//_value=0.1) # Glitch potential
+                p_price = col3.number_input("Buy Price", min_/_value=0.1) # Glitch potential
                 p_price = col3.number_input("Buy Price", min_value=0.1)
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save"):
