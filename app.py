@@ -8,19 +8,22 @@ import smtplib
 from email.mime.text import MIMEText
 from supabase import create_client, Client
 
-# --- 1. بنیادی سیٹنگز اور کنکشن ---
+# --- 1. بنیادی سیٹنگز ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
-# Supabase کنکشن (User کے لیے)
-url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(url, key)
+# Supabase کنکشنز
+try:
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
 
-# Supabase کنکشن (Admin کے لیے - Service Role)
-service_key = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase_admin: Client = create_client(url, service_key)
+    service_key = st.secrets["SUPABASE_SERVICE_KEY"]
+    supabase_admin: Client = create_client(url, service_key)
+except Exception as e:
+    st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔ براہ کرم چیک کریں۔")
+    st.stop()
 
-# سیشن اسٹیٹ مینجمنٹ
+# سیشن اسٹیٹ
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
@@ -65,11 +68,11 @@ if st.session_state['user'] is None:
     auth_page()
     st.stop()
 
-# --- 3. سائیڈ بار اور نیویگیشن ---
-st.sidebar.header(f"👋 Welcome, {st.session_state['user'].email}")
+# --- 3. نیویگیشن اور سائیڈ بار ---
+st.sidebar.header(f"👋 {st.session_state['user'].email}")
 st.sidebar.markdown("---")
 
-# ایڈمن چیک: کیا لاگ ان ہونے والی ای میل ایڈمن ای میل ہے؟
+# ایڈمن چیک
 is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
@@ -87,7 +90,7 @@ if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
 
-# --- 4. ای میل الرٹ فنکشن ---
+# --- 4. ہیلپر فنکشنز (Email & RSI) ---
 def send_email(target_price, current_price, symbol):
     try:
         sender = st.secrets["SENDER_EMAIL"]
@@ -104,7 +107,6 @@ def send_email(target_price, current_price, symbol):
     except:
         return False
 
-# RSI کیلکولیشن
 def calculate_rsi(data, window=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
@@ -112,17 +114,13 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# --- 5. ایڈمن ڈیش بورڈ (Admin Panel) ---
+# --- 5. مین پیجز (Admin vs User) ---
 if st.session_state['page'] == "admin":
     st.markdown('<div class="admin-box">', unsafe_allow_html=True)
     st.title("🛡️ Admin Control Center")
-    st.write("یہاں آپ تمام رجسٹرڈ صارفین کی لسٹ دیکھ سکتے ہیں۔")
-    
     try:
-        # Service Role Key کے ذریعے تمام صارفین کو حاصل کرنا
         users_data = supabase_admin.auth.admin.list_user_emails()
         user_list = [u.email for u in users_data]
-        
         st.subheader("Registered Users")
         st.table(pd.DataFrame({"User Email": user_list}))
         st.write(f"کل صارفین: {len(user_list)}")
@@ -130,7 +128,6 @@ if st.session_state['page'] == "admin":
         st.error(f"ڈیٹا حاصل کرنے میں غلطی: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 6. سٹاک اینالائزر (User Page) ---
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
     
@@ -147,24 +144,28 @@ else:
     if st.sidebar.button("Set Alert"):
         st.sidebar.success("الرٹ سیٹ ہو گیا!")
 
+    # ڈیٹا پروسیسنگ
     try:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
 
         if df.empty:
-            st.error("ڈیٹا نہیں ملا!")
+            st.error("ڈیٹا نہیں ملا! براہ کرم درست سمبل لکھیں۔")
         else:
+            # ٹیکنیکل انڈیکیٹرز
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
             
+            # ای میل الرٹ چیک
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
                 send_email(alert_price, last_price, symbol)
 
+            # ٹاپ میٹرکس
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Current Price", f"Rs. {last_price:.2f}")
+            col1.metric("Price", f"Rs. {last_price:.2f}")
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
             
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
@@ -177,7 +178,7 @@ else:
             col3.markdown(f"**Signal:** <h3 style='color:{color};'>{signal}</h3>", unsafe_allow_html=True)
             col4.metric("Status", "Overbought" if df['RSI'].iloc[-1] > 70 else "Oversold" if df['RSI'].iloc[-1] < 30 else "Normal")
 
-            # Professional Chart
+            # پروفیشنل چارٹ
             fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.6, 0.2, 0.2])
             fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='cyan'), name="SMA 20"), row=1, col=1)
@@ -189,6 +190,7 @@ else:
             fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
 
+            # کمپنی کی معلومات
             st.markdown("---")
             st.subheader("🏢 Company Intelligence")
             info = stock_obj.info
@@ -202,8 +204,11 @@ else:
             st.write(stock_obj.dividends.tail(10))
 
             st.subheader("📰 Live News")
-            for item in stock_obj.news[:5]:
-                st.markdown(f"**[{item['title']}]({item['link']})**")
+            if stock_obj.news:
+                for item in stock_obj.news[:5]:
+                    st.markdown(f"**[{item['title']}]({item['link']})**")
+            else:
+                st.write("کوئی خبر دستیاب نہیں ہے۔")
 
-except Exception as e:
-    st.error(f"System Error: {e}")
+    except Exception as e:
+        st.error(f"System Error: {e}")
