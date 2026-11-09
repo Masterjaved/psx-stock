@@ -57,26 +57,6 @@ def auth_page():
                     st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
         else:
-            if st.button("Create Account", use_/_container_width=True): # REMOVE THIS manually if it appears
-                pass
-
-# FIXED AUTH LOGIC
-def fixed_auth_page():
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.title("🔐 PSX Quantum Access")
-        auth_mode = st.radio("Option", ["Login", "Sign Up"], horizontal=True)
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        if auth_mode == "Login":
-            if st.button("Login", use_container_width=True):
-                try:
-                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state['user'] = res.user
-                    st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
-        else:
             if st.button("Create Account", use_container_width=True):
                 try:
                     supabase.auth.sign_up({"email": email, "password": password})
@@ -84,7 +64,7 @@ def fixed_auth_page():
                 except Exception as e: st.error(f"Error: {e}")
 
 if st.session_state['user'] is None:
-    fixed_auth_page()
+    auth_page()
     st.stop()
 
 st.sidebar.header(f"👋 {st.session_state['user'].email}")
@@ -154,6 +134,7 @@ def show_portfolio_page():
             if st.button("Update"):
                 supabase.table("portfolios").update({"symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah}).eq("id", st.session_state['edit_id']).execute()
                 st.session_state['edit_id'] = None
+                st.success("Updated!")
                 st.rerun()
             if st.button("Cancel"):
                 st.session_state['edit_id'] = None
@@ -165,6 +146,7 @@ def show_portfolio_page():
                 col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 p_symbol = col1.text_input("Symbol").upper()
                 p_qty = col2.number_input("Quantity", min_value=1, step=1)
+                p_price = col3.number_input("Buy Price", min_//_value=0.1) # Glitch potential
                 p_price = col3.number_input("Buy Price", min_value=0.1)
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save"):
@@ -178,6 +160,7 @@ def show_portfolio_page():
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
             if res.data:
                 total_inv, total_cur = 0, 0
+                st.subheader("Analysis")
                 for item in res.data:
                     try:
                         s_symbol = item['symbol'] + ".KA"
@@ -190,8 +173,7 @@ def show_portfolio_page():
                             div_y = s_obj.info.get('dividendYield', 0) or 0
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            sma20 = s_df['SMA_20'].iloc[-1]
-                            sma50 = s_df['SMA_50'].iloc[-1]
+                            sma20, sma50 = s_df['SMA_20'].iloc[-1], s_df['SMA_50'].iloc[-1]
                             if curr_p > sma20 and sma20 > sma50: advice, color = "🟢 Buy More", "green"
                             elif curr_p < sma20 and sma20 < sma50: advice, color = "🔴 Sell / Exit", "red"
                             else: advice, color = "🟡 Hold", "yellow"
@@ -293,8 +275,6 @@ def show_analyzer_page():
 
 if st.session_state['page'] == "admin":
     show_admin_page()
-elif st.session_/_state['page'] == "portfolio":
-    show_portfolio_page()
 elif st.session_state['page'] == "portfolio":
     show_portfolio_page()
 else:
