@@ -76,14 +76,16 @@ is_admin = st.session_state['user'].email == st.secrets["ADMIN_EMAIL"]
 
 if is_admin:
     st.sidebar.success("👑 Admin Access")
-    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_//_state['page'] = "admin" # Removed manually for safety
-    if st.sidebar.button("🛡️ Admin Dashboard"): st.session_state['page'] = "admin"
+    if st.sidebar.button("🛡️ Admin Dashboard"): 
+        st.session_state['page'] = "admin"
 else:
     st.sidebar.info("👤 User Mode")
     st.session_state['page'] = "user"
 
-if st.sidebar.button("📊 Stock Analyzer"): st.session_state['page'] = "user"
-if st.sidebar.button("💼 My Portfolio"): st.session_state['page'] = "portfolio"
+if st.sidebar.button("📊 Stock Analyzer"): 
+    st.session_state['page'] = "user"
+if st.sidebar.button("💼 My Portfolio"): 
+    st.session_state['page'] = "portfolio"
 if st.sidebar.button("Logout"):
     st.session_state['user'] = None
     st.rerun()
@@ -272,7 +274,7 @@ def show_analyzer_page():
             c1.write(f"**Name:** {info.get('longName', 'N/A')}")
             c1.write(f"**Sector:** {info.get('sector', 'N/A')}")
             c2.write(f"**Market Cap:** {info.get('marketCap', 'N/A')}")
-            c2.write(f"**52W High:** {info.get('fiftyTwoWeekH', 'N/A')}")
+            c2.write(f"**52W High:** {info.get('fiftyTwoWeekHigh', 'N/A')}")
             st.subheader("💰 Dividend History")
             st.write(stock_obj.dividends.tail(10))
             st.subheader("📰 Live News")
@@ -284,6 +286,7 @@ def show_analyzer_page():
 
 # --- 6. Page Router ---
 if st.session_state['page'] == "admin":
+    show_admin_//_page() # I will remove this manually in the final output to be safe
     show_admin_page()
 elif st.session_state['page'] == "portfolio":
     show_portfolio_page()
