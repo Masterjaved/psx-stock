@@ -20,20 +20,15 @@ def init_supabase():
         admin_client = create_client(url, s_key)
         return client, admin_client
     except Exception as e:
-        st.error("Secrets میں Supabase کی معلومات درست نہیں ہیں۔")
+        st.error("Secrets میں Supabase کی معلومات غلط ہیں۔")
         return None, None
 
 supabase, supabase_admin = init_supabase()
+if not supabase: st.stop()
 
-if not supabase:
-    st.stop()
-
-if 'user' not in st.session_state:
-    st.session_state['user'] = None
-if 'page' not in st.session_state:
-    st.session_state['page'] = "user"
-if 'edit_id' not in st.session_state:
-    st.session_state['edit_id'] = None
+if 'user' not in st.session_state: st.session_state['user'] = None
+if 'page' not in st.session_state: st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state: st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -120,7 +115,7 @@ def show_admin_page():
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
     except Exception as e: st.error(f"غلطی: {e}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_//_admin-box')
 
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
@@ -131,24 +126,19 @@ def show_portfolio_page():
         try:
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
-            with st.form("edit_form"):
-                col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
-                e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
-                e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
-                e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
-                e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
-                                             index=0 if item.get('shariah') == "Compliant" else 1)
-                
-                col_btn1, col_btn2 = st.columns([1, 5])
-                if col_btn1.form_submit_button("Update Stock"):
-                    supabase.table("portfolios").update({
-                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
-                    }).eq("id", st.session_state['edit_id']).execute()
-                    st.session_state['edit_id'] = None
-                    st.success("اپ ڈیٹ ہو گیا!")
-                    st.rerun()
-                # Cancel button is outside form or handled via state
-            if st.button("Cancel"):
+            col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
+            e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
+            e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
+            e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
+            e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
+                                         index=0 if item.get('shariah') == "Compliant" else 1)
+            col_btn1, col_btn2 = st.columns([1, 5])
+            if col_btn1.button("Update Stock"):
+                supabase.table("portfolios").update({"symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah}).eq("id", st.session_state['edit_id']).execute()
+                st.session_state['edit_id'] = None
+                st.success("اپ ڈیٹ ہو گیا!")
+                st.rerun()
+            if col_btn2.button("Cancel"):
                 st.session_state['edit_id'] = None
                 st.rerun()
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
@@ -162,14 +152,14 @@ def show_portfolio_page():
                 p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
                 if st.form_submit_button("Save to Portfolio"):
                     try:
-                        supabase.table("portfolios").insert({
-                            "user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
-                        }).execute()
+                        supabase.table("portfolios").insert({"user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah}).execute()
                         st.success("محفوظ کر لیا گیا!")
                         st.rerun()
                     except Exception as e: st.error(f"غلطی: {e}")
 
         try:
+            # Debug: Show User ID
+            # st.write(f"Fetching data for User ID: {st.session_state['user'].id}")
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
             if res.data:
                 total_invested, total_current_value = 0, 0
@@ -297,6 +287,6 @@ def show_analyzer_page():
 if st.session_state['page'] == "admin":
     show_admin_page()
 elif st.session_state['page'] == "portfolio":
-    show_portfolio_page()
+    show_portfolio_//_portfolio_page()
 else:
     show_analyzer_page()
