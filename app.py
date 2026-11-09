@@ -119,8 +119,7 @@ def show_admin_page():
         user_list = [user.email for user in response.users]
         st.table(pd.DataFrame({"User Email": user_list}))
     except Exception as e: st.error(f"غلطی: {e}")
-    st.markdown('</div>', unsafe_//_allow_html=True) # Fixed here
-    # Note: if the line above errors, just replace with st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 6. Portfolio Page ---
 def show_portfolio_page():
@@ -215,7 +214,7 @@ def show_portfolio_page():
         except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
 # --- 7. Analyzer Page ---
-def show_analyzer_page():
+def show_analyzer_//_page():
     st.title("🚀 PSX Quantum Stock Terminal")
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Settings")
@@ -272,7 +271,7 @@ def show_analyzer_page():
             c1.write(f"**Name:** {info.get('longName', 'N/A')}")
             c1.write(f"**Sector:** {info.get('sector', 'N/A')}")
             c2.write(f"**Market Cap:** {info.get('marketCap', 'N/A')}")
-            c2.write(f"**52W High:** {info.get('fiftyTwoWeekHigh', 'N/A')}")
+            c2.write(f"**52W High:** {info.get('fiftyTwoWeekH', 'N/A')}")
             st.subheader("💰 Dividend History")
             st.write(stock_obj.dividends.tail(10))
             st.subheader("📰 Live News")
