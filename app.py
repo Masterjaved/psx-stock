@@ -25,6 +25,8 @@ if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
     st.session_state['page'] = "user"
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 st.markdown("""
     <style>
@@ -115,39 +117,69 @@ if st.session_state['page'] == "admin":
 
 elif st.session_state['page'] == "portfolio":
     st.title("💼 My Stock Portfolio")
-    with st.expander("➕ Add Stock to Portfolio"):
-        col1, col2, col3 = st.columns(3)
-        p_symbol = col1.text_input("Symbol").upper()
-        p_qty = col2.number_input("Quantity", min_value=1, step=1)
-        p_price = col3.number_input("Buy Price", min_value=0.1)
-        if st.button("Save to Portfolio"):
-            try:
-                supabase.table("portfolios").insert({
-                    "user_id": st.session_state['user'].id,
-                    "symbol": p_symbol,
-                    "quantity": p_qty,
-                    "buy_price": p_price
-                }).execute()
-                st.success("محفوظ کر لیا گیا!")
-                st.rerun()
-            except Exception as e: st.error(f"غلطی: {e}")
-
-    try:
-        res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
-        if res.data:
-            st.subheader("Your Holdings")
-            for item in res.data:
-                col_s, col_q, col_p, col_d = st.columns([2, 1, 1, 1])
-                col_s.write(f"**{item['symbol']}**")
-                col_q.write(item['quantity'])
-                col_p.write(f"Rs. {item['buy_price']}")
-                if col_d.button("🗑️ Delete", key=f"del_{item['id']}"):
-                    supabase.table("portfolios").delete().eq("id", item['id']).execute()
-                    st.success(f"{item['symbol']} ڈیلیٹ کر دیا گیا!")
+    
+    # --- ایڈٹ موڈ چیک کریں ---
+    if st.session_state['edit_id'] is not None:
+        st.subheader("✏️ Edit Stock Details")
+        try:
+            # موجودہ ڈیٹا حاصل کریں
+            res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
+            item = res.data
+            with st.form("edit_form"):
+                e_symbol = st.text_input("Symbol", value=item['symbol']).upper()
+                e_qty = st.number_input("Quantity", value=int(item['quantity']), min_value=1)
+                e_price = st.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
+                if st.form_submit_button("Update Stock"):
+                    supabase.table("portfolios").update({
+                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price
+                    }).eq("id", st.session_state['edit_id']).execute()
+                    st.session_state['edit_id'] = None
+                    st.success("تبدیلی محفوظ کر لی گئی!")
                     st.rerun()
-        else:
-            st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
-    except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
+                if st.button("Cancel"):
+                    st.session_state['edit_id'] = None
+                    st.rerun()
+        except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
+    
+    else:
+        # پورٹ فولیو میں سٹاک شامل کرنا
+        with st.expander("➕ Add Stock to Portfolio"):
+            col1, col2, col3 = st.columns(3)
+            p_symbol = col1.text_input("Symbol").upper()
+            p_qty = col2.number_input("Quantity", min_value=1, step=1)
+            p_price = col3.number_input("Buy Price", min_value=0.1)
+            if st.button("Save to Portfolio"):
+                try:
+                    supabase.table("portfolios").insert({
+                        "user_id": st.session_state['user'].id,
+                        "symbol": p_symbol,
+                        "quantity": p_qty,
+                        "buy_price": p_price
+                    }).execute()
+                    st.success("محفوظ کر لیا گیا!")
+                    st.rerun()
+                except Exception as e: st.error(f"غلطی: {e}")
+
+        # پورٹ فولیو لسٹ
+        try:
+            res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
+            if res.data:
+                st.subheader("Your Holdings")
+                for item in res.data:
+                    col_s, col_q, col_p, col_e, col_d = st.columns([2, 1, 1, 1, 1])
+                    col_s.write(f"**{item['symbol']}**")
+                    col_q.write(item['quantity'])
+                    col_p.write(f"Rs. {item['buy_price']}")
+                    if col_e.button("✏️ Edit", key=f"edit_{item['id']}"):
+                        st.session_state['edit_id'] = item['id']
+                        st.rerun()
+                    if col_d.button("🗑️ Delete", key=f"del_{item['id']}"):
+                        supabase.table("portfolios").delete().eq("id", item['id']).execute()
+                        st.rerun()
+                st.markdown("---")
+            else:
+                st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
+        except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
@@ -165,27 +197,19 @@ else:
         full_symbol = symbol + ".KA"
         stock_obj = yf.Ticker(full_symbol)
         df = stock_obj.history(start=start_date, end=end_date)
-        
         if df.empty:
             st.error("ڈیٹا نہیں ملا!")
         else:
-            # ڈیٹا لوڈ ہونے کا وقت ریکارڈ کریں
-            last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
             df['SMA_20'] = df['Close'].rolling(window=20).mean()
             df['SMA_50'] = df['Close'].rolling(window=50).mean()
             df['RSI'] = calculate_rsi(df['Close'])
             last_price = df['Close'].iloc[-1]
-            
             if alert_price > 0 and abs(last_price - alert_price) < (last_price * 0.01):
                 send_email(alert_price, last_price, symbol)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Price", f"Rs. {last_price:.2f}")
-            col1.caption(f"🕒 Last Updated: {last_updated}")
-            
             col2.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-            
             if last_price > df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] > df['SMA_50'].iloc[-1]:
                 signal, color = "🟢 STRONG BUY", "green"
             elif last_price < df['SMA_20'].iloc[-1] and df['SMA_20'].iloc[-1] < df['SMA_50'].iloc[-1]:
@@ -205,7 +229,6 @@ else:
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
             fig.update_layout(template="plotly_dark", height=800, xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
-            
             st.markdown("---")
             st.subheader("🏢 Company Intelligence")
             info = stock_obj.info
@@ -220,5 +243,6 @@ else:
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
             else: st.write("کوئی خبر دستیاب نہیں ہے۔")
-    except Exception as e:
-        st.error(f"System Error: {e}")
+
+except Exception as e:
+    st.error(f"System Error: {e}")
