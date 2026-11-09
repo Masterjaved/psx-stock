@@ -129,21 +129,17 @@ def show_admin_page():
 def show_portfolio_page():
     st.title("💼 Intelligent Portfolio & Shariah Tracker")
     
-    # Edit Section (Form removed to avoid st.button error)
     if st.session_state['edit_id'] is not None:
         st.subheader("✏️ Edit Stock Details")
         try:
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
-            
-            # Use columns instead of form for editing
             col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
             e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
             e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
             e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
             e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
                                          index=0 if item.get('shariah') == "Compliant" else 1)
-            
             col_btn1, col_btn2 = st.columns([1, 5])
             if col_btn1.button("Update Stock"):
                 supabase.table("portfolios").update({
@@ -191,12 +187,15 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
+                            
+                            # CORRECTED LOGIC HERE
                             if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🟢 Buy More", "green"
-                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_//_SMA_50].iloc[-1]:
+                            elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
+                            
                             total_invested += (buy_price * qty)
                             total_current_value += (curr_price * qty)
                             with st.container():
