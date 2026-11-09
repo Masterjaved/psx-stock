@@ -115,6 +115,8 @@ if st.session_state['page'] == "admin":
 
 elif st.session_state['page'] == "portfolio":
     st.title("💼 My Stock Portfolio")
+    
+    # پورٹ فولیو میں سٹاک شامل کرنا
     with st.expander("➕ Add Stock to Portfolio"):
         col1, col2, col3 = st.columns(3)
         p_symbol = col1.text_input("Symbol").upper()
@@ -129,15 +131,28 @@ elif st.session_state['page'] == "portfolio":
                     "buy_price": p_price
                 }).execute()
                 st.success("محفوظ کر لیا گیا!")
+                st.rerun()
             except Exception as e: st.error(f"غلطی: {e}")
 
+    # پورٹ فولیو دکھانا اور ڈیلیٹ کرنا
     try:
         res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
         if res.data:
-            st.table(pd.DataFrame(res.data)[['symbol', 'quantity', 'buy_price']])
+            st.subheader("Your Holdings")
+            # ہم یہاں ایک لسٹ بنائیں گے تاکہ ہر رو کے ساتھ ڈیلیٹ بٹن ہو
+            for item in res.data:
+                col_s, col_q, col_p, col_d = st.columns([2, 1, 1, 1])
+                col_s.write(f"**{item['symbol']}**")
+                col_q.write(item['quantity'])
+                col_p.write(f"Rs. {item['buy_price']}")
+                if col_d.button("🗑️ Delete", key=f"del_{item['id']}"):
+                    supabase.table("portfolios").delete().eq("id", item['id']).execute()
+                    st.success(f"{item['symbol']} ڈیلیٹ کر دیا گیا!")
+                    st.rerun()
+            st.markdown("---")
         else:
-            st.write("پورٹ فولیو خالی ہے۔")
-    except Exception as e: st.error(f"غلطی: {e}")
+            st.write("آپ کا پورٹ فولیو ابھی خالی ہے۔")
+    except Exception as e: st.error(f"ڈیٹا لوڈ کرنے میں غلطی: {e}")
 
 else:
     st.title("🚀 PSX Quantum Stock Terminal")
@@ -201,5 +216,6 @@ else:
             if stock_obj.news:
                 for item in stock_obj.news[:5]: st.markdown(f"**[{item['title']}]({item['link']})**")
             else: st.write("کوئی خبر دستیاب نہیں ہے۔")
-    except Exception as e:
-        st.error(f"System Error: {e}")
+
+except Exception as e:
+    st.error(f"System Error: {e}")
