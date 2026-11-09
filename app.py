@@ -11,7 +11,6 @@ from supabase import create_client, Client
 # --- 1. Setup ---
 st.set_page_config(page_title="PSX Quantum Terminal", layout="wide", page_icon="🚀")
 
-# Supabase Connection
 def init_supabase():
     try:
         url = st.secrets["SUPABASE_URL"]
@@ -29,7 +28,6 @@ supabase, supabase_admin = init_supabase()
 if not supabase:
     st.stop()
 
-# Session State
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'page' not in st.session_state:
@@ -45,7 +43,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Auth Logic ---
+# --- 2. Auth ---
 def auth_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
@@ -54,7 +52,6 @@ def auth_page():
         auth_mode = st.radio("اختیار منتخب کریں", ["Login", "Sign Up"], horizontal=True)
         email = st.text_input("ای میل (Email)")
         password = st.text_input("پاس ورڈ (Password)", type="password")
-        
         if auth_mode == "Login":
             if st.button("Login", use_container_width=True):
                 try:
@@ -134,39 +131,43 @@ def show_portfolio_page():
         try:
             res = supabase.table("portfolios").select("*").eq("id", st.session_state['edit_id']).single().execute()
             item = res.data
-            col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
-            e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
-            e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
-            e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
-            e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
-                                         index=0 if item.get('shariah') == "Compliant" else 1)
-            col_btn1, col_btn2 = st.columns([1, 5])
-            if col_btn1.button("Update Stock"):
-                supabase.table("portfolios").update({
-                    "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
-                }).eq("id", st.session_state['edit_id']).execute()
-                st.session_state['edit_id'] = None
-                st.success("اپ ڈیٹ ہو گیا!")
-                st.rerun()
-            if col_btn2.button("Cancel"):
+            with st.form("edit_form"):
+                col_e1, col_e2, col_e3, col_e4 = st.columns([1, 1, 1, 1])
+                e_symbol = col_e1.text_input("Symbol", value=item['symbol']).upper()
+                e_qty = col_e2.number_input("Quantity", value=int(item['quantity']), min_value=1)
+                e_price = col_e3.number_input("Buy Price", value=float(item['buy_price']), min_value=0.1)
+                e_shariah = col_e4.selectbox("Shariah", ["Compliant", "Non-Compliant"], 
+                                             index=0 if item.get('shariah') == "Compliant" else 1)
+                
+                col_btn1, col_btn2 = st.columns([1, 5])
+                if col_btn1.form_submit_button("Update Stock"):
+                    supabase.table("portfolios").update({
+                        "symbol": e_symbol, "quantity": e_qty, "buy_price": e_price, "shariah": e_shariah
+                    }).eq("id", st.session_state['edit_id']).execute()
+                    st.session_state['edit_id'] = None
+                    st.success("اپ ڈیٹ ہو گیا!")
+                    st.rerun()
+                # Cancel button is outside form or handled via state
+            if st.button("Cancel"):
                 st.session_state['edit_id'] = None
                 st.rerun()
         except Exception as e: st.error(f"ایڈٹ میں غلطی: {e}")
     else:
         with st.expander("➕ Add Stock to Portfolio"):
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-            p_symbol = col1.text_input("Symbol").upper()
-            p_qty = col2.number_input("Quantity", min_value=1, step=1)
-            p_price = col3.number_input("Buy Price", min_value=0.1)
-            p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
-            if st.button("Save to Portfolio"):
-                try:
-                    supabase.table("portfolios").insert({
-                        "user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
-                    }).execute()
-                    st.success("محفوظ کر لیا گیا!")
-                    st.rerun()
-                except Exception as e: st.error(f"غلطی: {e}")
+            with st.form("add_form"):
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+                p_symbol = col1.text_input("Symbol").upper()
+                p_qty = col2.number_input("Quantity", min_value=1, step=1)
+                p_price = col3.number_input("Buy Price", min_value=0.1)
+                p_shariah = col4.selectbox("Shariah Status", ["Compliant", "Non-Compliant"])
+                if st.form_submit_button("Save to Portfolio"):
+                    try:
+                        supabase.table("portfolios").insert({
+                            "user_id": st.session_state['user'].id, "symbol": p_symbol, "quantity": p_qty, "buy_price": p_price, "shariah": p_shariah
+                        }).execute()
+                        st.success("محفوظ کر لیا گیا!")
+                        st.rerun()
+                    except Exception as e: st.error(f"غلطی: {e}")
 
         try:
             res = supabase.table("portfolios").select("*").eq("user_id", st.session_state['user'].id).execute()
@@ -187,15 +188,12 @@ def show_portfolio_page():
                             div_est = div_yield * curr_price * qty
                             s_df['SMA_20'] = s_df['Close'].rolling(window=20).mean()
                             s_df['SMA_50'] = s_df['Close'].rolling(window=50).mean()
-                            
-                            # CORRECTED LOGIC HERE
                             if curr_price > s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] > s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🟢 Buy More", "green"
                             elif curr_price < s_df['SMA_20'].iloc[-1] and s_df['SMA_20'].iloc[-1] < s_df['SMA_50'].iloc[-1]:
                                 advice, a_color = "🔴 Sell / Exit", "red"
                             else:
                                 advice, a_color = "🟡 Hold", "yellow"
-                            
                             total_invested += (buy_price * qty)
                             total_current_value += (curr_price * qty)
                             with st.container():
