@@ -117,6 +117,9 @@ if st.sidebar.button("📊 Stock Analyzer"):
     st.session_state["edit_id"] = None
 if st.sidebar.button("💼 My Portfolio"):
     st.session_state["page"] = "portfolio"
+if st.sidebar.button("🧪 Backtest"):
+    st.session_state["page"] = "backtest"
+    st.session_state["edit_id"] = None
 if st.sidebar.button("Logout"):
     try:
         supabase.auth.sign_out()
@@ -351,6 +354,9 @@ def show_portfolio_page():
 
 def show_analyzer_page():
     st.title("🚀 PSX Quantum Stock Terminal")
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Settings")
     symbol = st.sidebar.text_input("Symbol", "FFC").strip().upper()
@@ -464,6 +470,139 @@ def show_analyzer_page():
         st.error(f"System Error: {e}")
 
 
+STRATEGIES = ["SMA Trend (20/50)", "RSI (30/70)"]
+
+
+def run_backtest(df: pd.DataFrame, strategy: str, fee: float):
+    """Long-only backtest. Signal on day t's close -> position from day t+1
+    (no look-ahead). `fee` is charged on every buy and every sell."""
+    close = df["Close"]
+    sma20 = close.rolling(20).mean()
+    sma50 = close.rolling(50).mean()
+    rsi = calculate_rsi(close)
+
+    if strategy == STRATEGIES[0]:
+        raw = ((close > sma20) & (sma20 > sma50)).astype(int)
+    else:
+        state, vals = 0, []
+        for r in rsi:
+            if pd.notna(r):
+                if r < 30:
+                    state = 1
+                elif r > 70:
+                    state = 0
+            vals.append(state)
+        raw = pd.Series(vals, index=close.index)
+
+    position = raw.shift(1).fillna(0).astype(int)
+    daily_ret = close.pct_change().fillna(0)
+    switches = position.diff().abs().fillna(0)
+    strat_ret = position * daily_ret - switches * fee
+    equity = (1 + strat_ret).cumprod()
+
+    # Trade list
+    pv, cv, idx = position.values, close.values, close.index
+    trades, in_pos, e_i = [], False, 0
+    for i in range(len(pv)):
+        if pv[i] == 1 and not in_pos:
+            in_pos, e_i = True, i - 1
+        elif pv[i] == 0 and in_pos:
+            k = i - 1
+            trades.append((idx[e_i], idx[k], cv[e_i], cv[k], False))
+            in_pos = False
+    if in_pos:
+        k = len(pv) - 1
+        trades.append((idx[e_i], idx[k], cv[e_i], cv[k], True))
+
+    trade_df = pd.DataFrame(trades, columns=["Buy Date", "Sell Date", "Buy Price", "Sell Price", "Open"])
+    if not trade_df.empty:
+        trade_df["Return %"] = (trade_df["Sell Price"] / trade_df["Buy Price"] - 1 - 2 * fee) * 100
+        trade_df["Buy Date"] = pd.to_datetime(trade_df["Buy Date"]).dt.strftime("%Y-%m-%d")
+        trade_df["Sell Date"] = pd.to_datetime(trade_df["Sell Date"]).dt.strftime("%Y-%m-%d")
+        trade_df["Status"] = trade_df["Open"].map({True: "Still open", False: "Closed"})
+        trade_df = trade_df.drop(columns="Open")
+    return equity, position, trade_df
+
+
+def show_backtest_page():
+    st.title("🧪 Backtest — سگنل پرانے ڈیٹا پر کتنے درست رہے")
+    c1, c2, c3, c4 = st.columns(4)
+    symbol = c1.text_input("Symbol", "FFC").strip().upper()
+    start = c2.date_input("Start", date(2021, 1, 1))
+    end = c3.date_input("End", date.today())
+    fee_pct = c4.number_input("Fee per buy/sell (%)", value=0.5, min_value=0.0, step=0.1)
+    capital = st.number_input("Starting capital (Rs.)", value=100000, min_value=1000, step=10000)
+
+    if start >= end:
+        st.error("Start Date, End Date se pehle honi chahiye.")
+        return
+    if not symbol:
+        return
+
+    df = get_history(symbol, start=start, end=end + timedelta(days=1))
+    if df.empty:
+        st.error("No data found! Symbol check karein.")
+        return
+    if len(df) < 120:
+        st.warning("Kam az kam ~120 trading days ka data chahiye. Start Date pehle karein.")
+        return
+
+    fee = fee_pct / 100
+    results, rows = {}, []
+    for name in STRATEGIES:
+        eq, pos, trades = run_backtest(df, name, fee)
+        results[name] = (eq, trades)
+        closed = trades[trades["Status"] == "Closed"] if not trades.empty else trades
+        win = f"{(closed['Return %'] > 0).mean() * 100:.0f}%" if len(closed) else "N/A"
+        rows.append({
+            "Strategy": name,
+            "Final Value (Rs.)": f"{capital * eq.iloc[-1]:,.0f}",
+            "Total Return": f"{(eq.iloc[-1] - 1) * 100:.1f}%",
+            "Max Drawdown": f"{(eq / eq.cummax() - 1).min() * 100:.1f}%",
+            "Trades": len(trades),
+            "Win Rate": win,
+            "Time in Market": f"{pos.mean() * 100:.0f}%",
+        })
+
+    bh = (1 + df["Close"].pct_change().fillna(0)).cumprod()
+    rows.append({
+        "Strategy": "Buy & Hold",
+        "Final Value (Rs.)": f"{capital * bh.iloc[-1]:,.0f}",
+        "Total Return": f"{(bh.iloc[-1] - 1) * 100:.1f}%",
+        "Max Drawdown": f"{(bh / bh.cummax() - 1).min() * 100:.1f}%",
+        "Trades": 1,
+        "Win Rate": "-",
+        "Time in Market": "100%",
+    })
+
+    st.subheader("📋 Summary")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    fig = go.Figure()
+    for name in STRATEGIES:
+        fig.add_trace(go.Scatter(x=df.index, y=results[name][0] * capital, name=name))
+    fig.add_trace(go.Scatter(x=df.index, y=bh * capital, name="Buy & Hold",
+                             line=dict(dash="dot", color="gray")))
+    fig.update_layout(template="plotly_dark", height=450, title="Portfolio value (Rs.)")
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("🧾 Trades")
+    pick = st.selectbox("Strategy", STRATEGIES)
+    trades = results[pick][1]
+    if trades.empty:
+        st.write("Is period mein is strategy ne koi trade nahi li.")
+    else:
+        st.dataframe(trades.style.format({"Buy Price": "{:.2f}", "Sell Price": "{:.2f}",
+                                          "Return %": "{:.1f}"}),
+                     use_container_width=True, hide_index=True)
+
+    st.caption(
+        "⚠️ Ye sirf purane data ka hisaab hai. Is mein slippage, liquidity aur tax shamil nahi, "
+        "aur guzra hua result mustaqbil ki zamanat nahi. Signal din ke close par bana, "
+        "aur trade agle din maani gayi."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -475,5 +614,7 @@ if page == "admin":
     show_admin_page()
 elif page == "portfolio":
     show_portfolio_page()
+elif page == "backtest":
+    show_backtest_page()
 else:
     show_analyzer_page()
